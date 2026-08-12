@@ -1,0 +1,1117 @@
+{
+  "version": 2,
+  "generatedAt": "2026-08-12T19:57:19.309Z",
+  "browser": "151.0.7922.137",
+  "adapter": {
+    "architecture": "metal-3",
+    "vendor": "apple",
+    "maxBufferSize": 4294967292,
+    "maxStorageBufferBindingSize": 4294967292
+  },
+  "configuration": {
+    "requestedModels": [
+      "bonsai"
+    ],
+    "runs": 3,
+    "scenarios": [
+      "ambiguous-completion",
+      "record-finished-work",
+      "event-trip-plan",
+      "unsupported-capability",
+      "missing-task"
+    ],
+    "modelOrder": [
+      "bonsai"
+    ],
+    "variant": "bonsai-thinking",
+    "chromeProfile": "dedicated-persistent"
+  },
+  "chromePreflight": {
+    "apiPresent": true,
+    "availability": "available",
+    "userActivation": true,
+    "error": null
+  },
+  "scope": {
+    "localPlannerTools": true,
+    "nativeWebMcp": false,
+    "autoApproval": true,
+    "notes": [
+      "Native WebMCP requires a separate external-agent evaluation.",
+      "JS heap does not include model GPU allocation."
+    ]
+  },
+  "models": [
+    {
+      "model": "bonsai",
+      "availability": "available",
+      "activationMs": 127936.47804199999,
+      "activationKind": "measured",
+      "memoryAfterActivation": {
+        "deviceMemoryGiB": 32,
+        "jsHeap": {
+          "usedBytes": 100608903,
+          "totalBytes": 147490579,
+          "limitBytes": 4395630592
+        }
+      },
+      "memoryAfterEvaluation": {
+        "deviceMemoryGiB": 32,
+        "jsHeap": {
+          "usedBytes": 70366375,
+          "totalBytes": 75442039,
+          "limitBytes": 4395630592
+        }
+      },
+      "quality": {
+        "strictPassed": 9,
+        "attempted": 15,
+        "strictPassRate": 0.6,
+        "finalStatePassRate": 0.6,
+        "exactToolSequenceSteps": 12,
+        "expectedSteps": 18,
+        "exactToolSequenceRate": 0.6666666666666666,
+        "exactToolSelectionSteps": 12,
+        "exactToolSelectionRate": 0.6666666666666666,
+        "correctOutcomeSteps": 15,
+        "correctOutcomeRate": 0.8333333333333334,
+        "safeToolSteps": 18,
+        "safeToolRate": 1,
+        "exactDecisionSteps": 12,
+        "exactDecisionRate": 0.6666666666666666,
+        "clarification": {
+          "expected": 3,
+          "asked": 6,
+          "correct": 3
+        },
+        "rawModel": {
+          "exactToolSequenceSteps": 12,
+          "exactToolSequenceRate": 0.6666666666666666,
+          "exactToolSelectionSteps": 12,
+          "exactToolSelectionRate": 0.6666666666666666,
+          "correctOutcomeSteps": 10,
+          "correctOutcomeRate": 0.5555555555555556,
+          "safeToolSteps": 18,
+          "safeToolRate": 1,
+          "exactDecisionSteps": 7,
+          "exactDecisionRate": 0.3888888888888889,
+          "clarification": {
+            "expected": 3,
+            "asked": 11,
+            "correct": 3
+          }
+        },
+        "guardrails": {
+          "interventions": 9,
+          "byType": {
+            "ambiguous-completion": 3,
+            "unsupported-capability": 3,
+            "missing-completion-target": 3
+          }
+        },
+        "structuredOutput": {
+          "diagnosed": 18,
+          "validInitially": 18,
+          "rawValidityRate": 1,
+          "recovered": 0,
+          "retried": 0
+        },
+        "failureCategories": {
+          "unnecessary-clarification": 3,
+          "wrong-tool-sequence": 6
+        }
+      },
+      "performance": {
+        "workflowMs": {
+          "mean": 31264.426091733338,
+          "median": 24941.689000000013,
+          "p95": 54532.94645799999
+        },
+        "plannerMs": {
+          "mean": 25818.977777782413,
+          "median": 24350.69999998808,
+          "p95": 34650.69999998808
+        },
+        "firstWorkflowMs": 52536.635792000015,
+        "subsequentWorkflowMedianMs": 23922.38500000001
+      },
+      "scenarios": [
+        {
+          "run": 1,
+          "scenarioId": "ambiguous-completion",
+          "scenario": "Clarify an ambiguous completion",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 2 steps and state checks.",
+          "workflowMs": 52536.635792000015,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "clarification",
+              "calls": []
+            },
+            {
+              "status": "executed",
+              "calls": [
+                "complete_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "Complete the report",
+              "originalRequest": "Complete the report",
+              "planner": "bonsai",
+              "outcome": "clarify",
+              "calls": [],
+              "message": "Which task should I complete: “submit report” or “review report”?",
+              "status": "clarification",
+              "metrics": {
+                "elapsedMs": 24842.20000001788,
+                "contextUsage": 1077,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 46,
+                "estimatedTokensPerSecond": 8.692292833687464
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Do you want to complete the 'submit report' task, the 'review report' task, or both?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Do you want to complete the 'submit report' task, the 'review report' task, or both?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "ambiguous-completion"
+              ]
+            },
+            {
+              "request": "submit report",
+              "originalRequest": "Complete the report",
+              "planner": "bonsai",
+              "outcome": "act",
+              "calls": [
+                {
+                  "name": "complete_task",
+                  "arguments": {
+                    "task": "submit report"
+                  }
+                }
+              ],
+              "message": "Completed “submit report”.",
+              "status": "executed",
+              "metrics": {
+                "elapsedMs": 27409.90000000596,
+                "contextUsage": 1124,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 65,
+                "estimatedTokensPerSecond": 8.672674300426857
+              },
+              "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"complete_task\",\n      \"arguments\": {\n        \"task\": \"submit report\"\n      }\n    }\n  ],\n  \"message\": \"Completed 'submit report'.\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"complete_task\",\n      \"arguments\": {\n        \"task\": \"submit report\"\n      }\n    }\n  ],\n  \"message\": \"Completed 'submit report'.\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "act",
+              "modelCalls": [
+                {
+                  "name": "complete_task",
+                  "arguments": {
+                    "task": "submit report"
+                  }
+                }
+              ],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 1,
+          "scenarioId": "record-finished-work",
+          "scenario": "Record newly finished work",
+          "status": "failed",
+          "strictPass": false,
+          "detail": "Expected executed, but the model requested clarification: Could you please specify which task this refers to so I can mark it as complete?",
+          "workflowMs": 22408.033459,
+          "categories": [
+            "unnecessary-clarification",
+            "wrong-tool-sequence"
+          ],
+          "expectedSteps": [
+            {
+              "status": "executed",
+              "calls": [
+                "add_task",
+                "complete_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "I packed a sldering iron as well",
+              "originalRequest": "I packed a sldering iron as well",
+              "planner": "bonsai",
+              "outcome": "clarify",
+              "calls": [],
+              "message": "Could you please specify which task this refers to so I can mark it as complete?",
+              "status": "clarification",
+              "metrics": {
+                "elapsedMs": 21904.59999999404,
+                "contextUsage": 977,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 41,
+                "estimatedTokensPerSecond": 8.881980681692017
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Could you please specify which task this refers to so I can mark it as complete?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Could you please specify which task this refers to so I can mark it as complete?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 1,
+          "scenarioId": "event-trip-plan",
+          "scenario": "Plan tomorrow’s event trip",
+          "status": "failed",
+          "strictPass": false,
+          "detail": "Expected 6 total; found 2. Expected 6 open; found 2. Expected distinct tasks covering: robot; voice + agent; usb + cable; power; station; lyft + airbnb.",
+          "workflowMs": 33449.434917000006,
+          "categories": [
+            "wrong-tool-sequence"
+          ],
+          "expectedSteps": [
+            {
+              "status": "executed",
+              "calls": [
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "I need to pack for my event tomorrow. I have a robot, a voice agent, usb cables, and power. All of which need packing. Then I need get to southbend statuion and take a lyft to the airbnb.",
+              "originalRequest": "I need to pack for my event tomorrow. I have a robot, a voice agent, usb cables, and power. All of which need packing. Then I need get to southbend statuion and take a lyft to the airbnb.",
+              "planner": "bonsai",
+              "outcome": "act",
+              "calls": [
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Pack robot, voice agent, usb cables, and power for event tomorrow"
+                  }
+                },
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Travel to Southbend Station and take a Lyft to Airbnb"
+                  }
+                }
+              ],
+              "message": "Added “Pack robot, voice agent, usb cables, and power for event tomorrow”. Added “Travel to Southbend Station and take a Lyft to Airbnb”.",
+              "status": "executed",
+              "metrics": {
+                "elapsedMs": 33033.90000000596,
+                "contextUsage": 1107,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 130,
+                "estimatedTokensPerSecond": 8.862690135616141
+              },
+              "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Pack robot, voice agent, usb cables, and power for event tomorrow\"\n      }\n    },\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Travel to Southbend Station and take a Lyft to Airbnb\"\n      }\n    }\n  ],\n  \"message\": \"Added tasks to pack items and travel to Southbend Station for your event.\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Pack robot, voice agent, usb cables, and power for event tomorrow\"\n      }\n    },\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Travel to Southbend Station and take a Lyft to Airbnb\"\n      }\n    }\n  ],\n  \"message\": \"Added tasks to pack items and travel to Southbend Station for your event.\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "act",
+              "modelCalls": [
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Pack robot, voice agent, usb cables, and power for event tomorrow"
+                  }
+                },
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Travel to Southbend Station and take a Lyft to Airbnb"
+                  }
+                }
+              ],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 1,
+          "scenarioId": "unsupported-capability",
+          "scenario": "Decline an unsupported capability",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 1 step and state checks.",
+          "workflowMs": 22917.20845800001,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "answered",
+              "calls": []
+            }
+          ],
+          "trace": [
+            {
+              "request": "Email the submit report task to Alex",
+              "originalRequest": "Email the submit report task to Alex",
+              "planner": "bonsai",
+              "outcome": "answer",
+              "calls": [],
+              "message": "I can manage local tasks, but I cannot email people.",
+              "status": "answered",
+              "metrics": {
+                "elapsedMs": 22845.40000000596,
+                "contextUsage": 1024,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 39,
+                "estimatedTokensPerSecond": 8.756971009804998
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which email address should I use to send the submit report task to Alex?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which email address should I use to send the submit report task to Alex?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "unsupported-capability"
+              ]
+            }
+          ]
+        },
+        {
+          "run": 1,
+          "scenarioId": "missing-task",
+          "scenario": "Do not guess a missing task",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 1 step and state checks.",
+          "workflowMs": 21408.626958000008,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "answered",
+              "calls": []
+            }
+          ],
+          "trace": [
+            {
+              "request": "Complete renew passport",
+              "originalRequest": "Complete renew passport",
+              "planner": "bonsai",
+              "outcome": "answer",
+              "calls": [],
+              "message": "I could not find a current task matching “renew passport”.",
+              "status": "answered",
+              "metrics": {
+                "elapsedMs": 21340.40000000596,
+                "contextUsage": 1007,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 26,
+                "estimatedTokensPerSecond": 8.640951195943249
+              },
+              "rawOutput": "{\"outcome\":\"answer\",\"calls\":[],\"message\":\"No task found matching 'Complete renew passport' in the current task list.\"}",
+              "outputDiagnostics": {
+                "rawOutput": "{\"outcome\":\"answer\",\"calls\":[],\"message\":\"No task found matching 'Complete renew passport' in the current task list.\"}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "answer",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "missing-completion-target"
+              ]
+            }
+          ]
+        },
+        {
+          "run": 2,
+          "scenarioId": "ambiguous-completion",
+          "scenario": "Clarify an ambiguous completion",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 2 steps and state checks.",
+          "workflowMs": 51523.34158299997,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "clarification",
+              "calls": []
+            },
+            {
+              "status": "executed",
+              "calls": [
+                "complete_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "Complete the report",
+              "originalRequest": "Complete the report",
+              "planner": "bonsai",
+              "outcome": "clarify",
+              "calls": [],
+              "message": "Which task should I complete: “submit report” or “review report”?",
+              "status": "clarification",
+              "metrics": {
+                "elapsedMs": 23579.80000001192,
+                "contextUsage": 1071,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 40,
+                "estimatedTokensPerSecond": 8.676113990801475
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which task should I complete: 'submit report' or 'review report'?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which task should I complete: 'submit report' or 'review report'?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "ambiguous-completion"
+              ]
+            },
+            {
+              "request": "submit report",
+              "originalRequest": "Complete the report",
+              "planner": "bonsai",
+              "outcome": "act",
+              "calls": [
+                {
+                  "name": "complete_task",
+                  "arguments": {
+                    "task": "submit report"
+                  }
+                }
+              ],
+              "message": "Completed “submit report”.",
+              "status": "executed",
+              "metrics": {
+                "elapsedMs": 27431.70000001788,
+                "contextUsage": 1125,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 66,
+                "estimatedTokensPerSecond": 8.692744901370778
+              },
+              "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"complete_task\",\n      \"arguments\": {\n        \"task\": \"submit report\"\n      }\n    }\n  ],\n  \"message\": \"Task 'submit report' completed.\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"complete_task\",\n      \"arguments\": {\n        \"task\": \"submit report\"\n      }\n    }\n  ],\n  \"message\": \"Task 'submit report' completed.\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "act",
+              "modelCalls": [
+                {
+                  "name": "complete_task",
+                  "arguments": {
+                    "task": "submit report"
+                  }
+                }
+              ],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 2,
+          "scenarioId": "record-finished-work",
+          "scenario": "Record newly finished work",
+          "status": "failed",
+          "strictPass": false,
+          "detail": "Expected executed, but the model requested clarification: What did you pack the slderring iron for?",
+          "workflowMs": 20899.981667000044,
+          "categories": [
+            "unnecessary-clarification",
+            "wrong-tool-sequence"
+          ],
+          "expectedSteps": [
+            {
+              "status": "executed",
+              "calls": [
+                "add_task",
+                "complete_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "I packed a sldering iron as well",
+              "originalRequest": "I packed a sldering iron as well",
+              "planner": "bonsai",
+              "outcome": "clarify",
+              "calls": [],
+              "message": "What did you pack the slderring iron for?",
+              "status": "clarification",
+              "metrics": {
+                "elapsedMs": 20566,
+                "contextUsage": 959,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 23,
+                "estimatedTokensPerSecond": 8.705630960409913
+              },
+              "rawOutput": "{\"outcome\":\"clarify\",\"calls\":[],\"message\":\"What did you pack the slderring iron for?\"}",
+              "outputDiagnostics": {
+                "rawOutput": "{\"outcome\":\"clarify\",\"calls\":[],\"message\":\"What did you pack the slderring iron for?\"}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 2,
+          "scenarioId": "event-trip-plan",
+          "scenario": "Plan tomorrow’s event trip",
+          "status": "failed",
+          "strictPass": false,
+          "detail": "Expected 6 total; found 2. Expected 6 open; found 2. Expected distinct tasks covering: robot; voice + agent; usb + cable; power; station; lyft + airbnb.",
+          "workflowMs": 34010.75216700003,
+          "categories": [
+            "wrong-tool-sequence"
+          ],
+          "expectedSteps": [
+            {
+              "status": "executed",
+              "calls": [
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "I need to pack for my event tomorrow. I have a robot, a voice agent, usb cables, and power. All of which need packing. Then I need get to southbend statuion and take a lyft to the airbnb.",
+              "originalRequest": "I need to pack for my event tomorrow. I have a robot, a voice agent, usb cables, and power. All of which need packing. Then I need get to southbend statuion and take a lyft to the airbnb.",
+              "planner": "bonsai",
+              "outcome": "act",
+              "calls": [
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Pack robot, voice agent, usb cables, and power for event tomorrow"
+                  }
+                },
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Travel to Southbend Station and take Lyft to Airbnb"
+                  }
+                }
+              ],
+              "message": "Added “Pack robot, voice agent, usb cables, and power for event tomorrow”. Added “Travel to Southbend Station and take Lyft to Airbnb”.",
+              "status": "executed",
+              "metrics": {
+                "elapsedMs": 33966.20000001788,
+                "contextUsage": 1097,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 120,
+                "estimatedTokensPerSecond": 8.729460093896714
+              },
+              "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Pack robot, voice agent, usb cables, and power for event tomorrow\"\n      }\n    },\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Travel to Southbend Station and take Lyft to Airbnb\"\n      }\n    }\n  ],\n  \"message\": \"Tasks added for packing and travel.\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Pack robot, voice agent, usb cables, and power for event tomorrow\"\n      }\n    },\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Travel to Southbend Station and take Lyft to Airbnb\"\n      }\n    }\n  ],\n  \"message\": \"Tasks added for packing and travel.\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "act",
+              "modelCalls": [
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Pack robot, voice agent, usb cables, and power for event tomorrow"
+                  }
+                },
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Travel to Southbend Station and take Lyft to Airbnb"
+                  }
+                }
+              ],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 2,
+          "scenarioId": "unsupported-capability",
+          "scenario": "Decline an unsupported capability",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 1 step and state checks.",
+          "workflowMs": 24941.689000000013,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "answered",
+              "calls": []
+            }
+          ],
+          "trace": [
+            {
+              "request": "Email the submit report task to Alex",
+              "originalRequest": "Email the submit report task to Alex",
+              "planner": "bonsai",
+              "outcome": "answer",
+              "calls": [],
+              "message": "I can manage local tasks, but I cannot email people.",
+              "status": "answered",
+              "metrics": {
+                "elapsedMs": 24603.19999998808,
+                "contextUsage": 1016,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 31,
+                "estimatedTokensPerSecond": 8.611533714110289
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Please provide Alex's email address.\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Please provide Alex's email address.\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "unsupported-capability"
+              ]
+            }
+          ]
+        },
+        {
+          "run": 2,
+          "scenarioId": "missing-task",
+          "scenario": "Do not guess a missing task",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 1 step and state checks.",
+          "workflowMs": 26624.510749999958,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "answered",
+              "calls": []
+            }
+          ],
+          "trace": [
+            {
+              "request": "Complete renew passport",
+              "originalRequest": "Complete renew passport",
+              "planner": "bonsai",
+              "outcome": "answer",
+              "calls": [],
+              "message": "I could not find a current task matching “renew passport”.",
+              "status": "answered",
+              "metrics": {
+                "elapsedMs": 26301.09999999404,
+                "contextUsage": 1028,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 47,
+                "estimatedTokensPerSecond": 8.810235194944163
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Do you want to complete the task 'book dentist appointment' or add a new task to complete a passport renewal?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Do you want to complete the task 'book dentist appointment' or add a new task to complete a passport renewal?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "missing-completion-target"
+              ]
+            }
+          ]
+        },
+        {
+          "run": 3,
+          "scenarioId": "ambiguous-completion",
+          "scenario": "Clarify an ambiguous completion",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 2 steps and state checks.",
+          "workflowMs": 54532.94645799999,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "clarification",
+              "calls": []
+            },
+            {
+              "status": "executed",
+              "calls": [
+                "complete_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "Complete the report",
+              "originalRequest": "Complete the report",
+              "planner": "bonsai",
+              "outcome": "clarify",
+              "calls": [],
+              "message": "Which task should I complete: “submit report” or “review report”?",
+              "status": "clarification",
+              "metrics": {
+                "elapsedMs": 24350.69999998808,
+                "contextUsage": 1062,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 31,
+                "estimatedTokensPerSecond": 8.619698885170848
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which report task should I complete?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which report task should I complete?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "ambiguous-completion"
+              ]
+            },
+            {
+              "request": "submit report",
+              "originalRequest": "Complete the report",
+              "planner": "bonsai",
+              "outcome": "act",
+              "calls": [
+                {
+                  "name": "complete_task",
+                  "arguments": {
+                    "task": "submit report"
+                  }
+                }
+              ],
+              "message": "Completed “submit report”.",
+              "status": "executed",
+              "metrics": {
+                "elapsedMs": 29861.100000023842,
+                "contextUsage": 1125,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 66,
+                "estimatedTokensPerSecond": 8.626639061442143
+              },
+              "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"complete_task\",\n      \"arguments\": {\n        \"task\": \"submit report\"\n      }\n    }\n  ],\n  \"message\": \"Task 'submit report' completed.\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"complete_task\",\n      \"arguments\": {\n        \"task\": \"submit report\"\n      }\n    }\n  ],\n  \"message\": \"Task 'submit report' completed.\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "act",
+              "modelCalls": [
+                {
+                  "name": "complete_task",
+                  "arguments": {
+                    "task": "submit report"
+                  }
+                }
+              ],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 3,
+          "scenarioId": "record-finished-work",
+          "scenario": "Record newly finished work",
+          "status": "failed",
+          "strictPass": false,
+          "detail": "Expected executed, but the model requested clarification: Did you pack the sldering iron for a specific trip or event?",
+          "workflowMs": 22905.777332999976,
+          "categories": [
+            "unnecessary-clarification",
+            "wrong-tool-sequence"
+          ],
+          "expectedSteps": [
+            {
+              "status": "executed",
+              "calls": [
+                "add_task",
+                "complete_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "I packed a sldering iron as well",
+              "originalRequest": "I packed a sldering iron as well",
+              "planner": "bonsai",
+              "outcome": "clarify",
+              "calls": [],
+              "message": "Did you pack the sldering iron for a specific trip or event?",
+              "status": "clarification",
+              "metrics": {
+                "elapsedMs": 22853.90000000596,
+                "contextUsage": 975,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 39,
+                "estimatedTokensPerSecond": 8.890136627350508
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Did you pack the sldering iron for a specific trip or event?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Did you pack the sldering iron for a specific trip or event?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 3,
+          "scenarioId": "event-trip-plan",
+          "scenario": "Plan tomorrow’s event trip",
+          "status": "failed",
+          "strictPass": false,
+          "detail": "Expected 6 total; found 2. Expected 6 open; found 2. Expected distinct tasks covering: robot; voice + agent; usb + cable; power; station; lyft + airbnb.",
+          "workflowMs": 34969.32250000007,
+          "categories": [
+            "wrong-tool-sequence"
+          ],
+          "expectedSteps": [
+            {
+              "status": "executed",
+              "calls": [
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task",
+                "add_task"
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "request": "I need to pack for my event tomorrow. I have a robot, a voice agent, usb cables, and power. All of which need packing. Then I need get to southbend statuion and take a lyft to the airbnb.",
+              "originalRequest": "I need to pack for my event tomorrow. I have a robot, a voice agent, usb cables, and power. All of which need packing. Then I need get to southbend statuion and take a lyft to the airbnb.",
+              "planner": "bonsai",
+              "outcome": "act",
+              "calls": [
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Pack robot, voice agent, usb cables, and power for event tomorrow"
+                  }
+                },
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Travel to Southbend Station and take a Lyft to Airbnb"
+                  }
+                }
+              ],
+              "message": "Added “Pack robot, voice agent, usb cables, and power for event tomorrow”. Added “Travel to Southbend Station and take a Lyft to Airbnb”.",
+              "status": "executed",
+              "metrics": {
+                "elapsedMs": 34650.69999998808,
+                "contextUsage": 1098,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 121,
+                "estimatedTokensPerSecond": 8.617037318948768
+              },
+              "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Pack robot, voice agent, usb cables, and power for event tomorrow\"\n      }\n    },\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Travel to Southbend Station and take a Lyft to Airbnb\"\n      }\n    }\n  ],\n  \"message\": \"Tasks added for packing and travel.\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"act\",\n  \"calls\": [\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Pack robot, voice agent, usb cables, and power for event tomorrow\"\n      }\n    },\n    {\n      \"name\": \"add_task\",\n      \"arguments\": {\n        \"title\": \"Travel to Southbend Station and take a Lyft to Airbnb\"\n      }\n    }\n  ],\n  \"message\": \"Tasks added for packing and travel.\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "act",
+              "modelCalls": [
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Pack robot, voice agent, usb cables, and power for event tomorrow"
+                  }
+                },
+                {
+                  "name": "add_task",
+                  "arguments": {
+                    "title": "Travel to Southbend Station and take a Lyft to Airbnb"
+                  }
+                }
+              ],
+              "guardrailInterventions": []
+            }
+          ]
+        },
+        {
+          "run": 3,
+          "scenarioId": "unsupported-capability",
+          "scenario": "Decline an unsupported capability",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 1 step and state checks.",
+          "workflowMs": 23922.38500000001,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "answered",
+              "calls": []
+            }
+          ],
+          "trace": [
+            {
+              "request": "Email the submit report task to Alex",
+              "originalRequest": "Email the submit report task to Alex",
+              "planner": "bonsai",
+              "outcome": "answer",
+              "calls": [],
+              "message": "I can manage local tasks, but I cannot email people.",
+              "status": "answered",
+              "metrics": {
+                "elapsedMs": 23498.80000001192,
+                "contextUsage": 1022,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 37,
+                "estimatedTokensPerSecond": 8.754650908307722
+              },
+              "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which email address should I use to send the task to Alex?\"\n}",
+              "outputDiagnostics": {
+                "rawOutput": "{\n  \"outcome\": \"clarify\",\n  \"calls\": [],\n  \"message\": \"Which email address should I use to send the task to Alex?\"\n}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "unsupported-capability"
+              ]
+            }
+          ]
+        },
+        {
+          "run": 3,
+          "scenarioId": "missing-task",
+          "scenario": "Do not guess a missing task",
+          "status": "passed",
+          "strictPass": true,
+          "detail": "Passed all 1 step and state checks.",
+          "workflowMs": 21915.745333999977,
+          "categories": [],
+          "expectedSteps": [
+            {
+              "status": "answered",
+              "calls": []
+            }
+          ],
+          "trace": [
+            {
+              "request": "Complete renew passport",
+              "originalRequest": "Complete renew passport",
+              "planner": "bonsai",
+              "outcome": "answer",
+              "calls": [],
+              "message": "I could not find a current task matching “renew passport”.",
+              "status": "answered",
+              "metrics": {
+                "elapsedMs": 21702,
+                "contextUsage": 1001,
+                "contextWindow": 4096,
+                "estimatedOutputTokens": 20,
+                "estimatedTokensPerSecond": 8.526296894724144
+              },
+              "rawOutput": "{\"outcome\":\"clarify\",\"calls\":[],\"message\":\"Which passport do you want to renew?\"}",
+              "outputDiagnostics": {
+                "rawOutput": "{\"outcome\":\"clarify\",\"calls\":[],\"message\":\"Which passport do you want to renew?\"}",
+                "validInitially": true,
+                "recovered": false,
+                "retried": false,
+                "attempts": 1,
+                "recoverySteps": []
+              },
+              "modelOutcome": "clarify",
+              "modelCalls": [],
+              "guardrailInterventions": [
+                "missing-completion-target"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

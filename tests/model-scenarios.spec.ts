@@ -15,7 +15,10 @@ test('model decomposes the Boston trip paragraph into distinct tasks', async ({ 
       value: {
         availability: async () => 'available',
         create: async () => ({
-          prompt: async () => JSON.stringify({ calls, reply: 'I separated the trip preparation into six tasks.' }),
+          prompt: async () => JSON.stringify({ outcome: 'act', calls, message: 'I separated the trip preparation into six tasks.' }),
+          measureContextUsage: async () => 80,
+          contextUsage: 750,
+          contextWindow: 4096,
           destroy: () => undefined
         })
       }
@@ -37,4 +40,6 @@ test('model decomposes the Boston trip paragraph into distinct tasks', async ({ 
     await expect(page.getByTestId('today-panel').getByText(title, { exact: true })).toBeVisible();
   }
   await expect(page.locator('.run-feedback .called-tools code')).toHaveCount(6);
+  await expect(page.locator('.planner-metrics')).toContainText('750 / 4,096');
+  await expect(page.locator('.planner-metrics')).toContainText('tok/s');
 });

@@ -33,19 +33,24 @@ function editDistance(left: string, right: string) {
   return previous[right.length];
 }
 
-function findTask(tasks: Task[], requested: unknown) {
+export function findTask(tasks: Task[], requested: unknown) {
   const rawQuery = cleanTitle(requested);
   const byId = tasks.find((item) => item.id === rawQuery);
-  if (byId) return byId;
+  if (byId) return { task: byId, candidates: [] as Task[] };
   const query = normalize(rawQuery);
-  if (!query) return undefined;
-  const direct = tasks.find((item) => normalize(item.title).includes(query) || query.includes(normalize(item.title)));
-  if (direct) return direct;
+  if (!query) return { task: undefined, candidates: [] as Task[] };
+  const direct = tasks.filter((item) => normalize(item.title).includes(query) || query.includes(normalize(item.title)));
+  if (direct.length === 1) return { task: direct[0], candidates: [] as Task[] };
+  if (direct.length > 1) return { task: undefined, candidates: direct };
   const ranked = tasks
     .map((item) => ({ item, distance: editDistance(normalize(item.title), query) }))
     .sort((left, right) => left.distance - right.distance);
   const best = ranked[0];
-  return best && best.distance <= Math.max(2, Math.floor(query.length * 0.2)) ? best.item : undefined;
+  if (!best || best.distance > Math.max(2, Math.floor(query.length * 0.2))) return { task: undefined, candidates: [] as Task[] };
+  const equallyClose = ranked.filter((item) => item.distance === best.distance).map((item) => item.item);
+  return equallyClose.length === 1
+    ? { task: best.item, candidates: [] as Task[] }
+    : { task: undefined, candidates: equallyClose };
 }
 
 export function createTools(runtime: ToolRuntime): ToolDefinition[] {
@@ -108,7 +113,15 @@ export function createTools(runtime: ToolRuntime): ToolDefinition[] {
         // Accept those aliases at the trust boundary, then normalize once.
         const requested = task ?? title ?? id;
         const query = cleanTitle(requested);
-        const found = findTask(runtime.getTasks(), requested);
+        const { task: found, candidates } = findTask(runtime.getTasks(), requested);
+        if (candidates.length > 1) {
+          return {
+            ok: false,
+            ambiguous: true,
+            error: `Several tasks matched “${query}”.`,
+            candidates: candidates.map(({ id, title }) => ({ id, title }))
+          };
+        }
         if (!found) return { ok: false, error: query ? `No task closely matched “${query}”.` : 'A task id or title is required.' };
         runtime.setTasks((tasks) => tasks.map((item) => item.id === found.id ? { ...item, completed: true } : item));
         runtime.log(`Completed “${found.title}”.`, source);

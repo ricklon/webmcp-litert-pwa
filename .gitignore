@@ -3,6 +3,11 @@ dist/
 test-results/
 playwright-report/
 artifacts/
+benchmark-results/*
+!benchmark-results/baseline-v2-3run.json
+!benchmark-results/litert-e4b-focused-3run.json
+!benchmark-results/bonsai-thinking-focused-3run.json
+.playwright/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts

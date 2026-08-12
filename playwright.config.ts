@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const nativeWebMcp = process.env.RUN_NATIVE_WEBMCP === '1';
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -10,7 +12,16 @@ export default defineConfig({
     trace: 'on-first-retry'
   },
   projects: [
-    { name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }
+    {
+      name: 'chrome',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        launchOptions: nativeWebMcp ? {
+          args: ['--enable-features=WebMCP', '--enable-blink-features=WebMCPTesting']
+        } : undefined
+      }
+    }
   ],
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 4175',
