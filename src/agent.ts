@@ -44,6 +44,7 @@ type ChromeLanguageModel = {
 declare global { interface Window { LanguageModel?: ChromeLanguageModel } }
 
 let chromeSession: ChromeSession | null = null;
+let chromeLoadGeneration = 0;
 
 const chromeOptions = {
   expectedInputs: [{ type: 'text', languages: ['en'] }],
@@ -57,8 +58,8 @@ export async function getChromeModelAvailability(): Promise<ChromeAvailability> 
 
 export async function loadChromeModel(onProgress?: (message: string) => void) {
   if (!window.LanguageModel) throw new Error('Chrome’s Prompt API is not available.');
-  chromeSession?.destroy?.();
-  chromeSession = await window.LanguageModel.create({
+  const generation = ++chromeLoadGeneration;
+  const nextSession = await window.LanguageModel.create({
     ...chromeOptions,
     initialPrompts: [{ role: 'system', content: AGENT_SYSTEM_PROMPT }],
     monitor(monitor: EventTarget) {
@@ -68,9 +69,16 @@ export async function loadChromeModel(onProgress?: (message: string) => void) {
       });
     }
   });
+  if (generation !== chromeLoadGeneration) {
+    nextSession.destroy?.();
+    throw new Error('Chrome model load was superseded by another runtime selection.');
+  }
+  chromeSession?.destroy?.();
+  chromeSession = nextSession;
 }
 
 export function unloadChromeModel() {
+  chromeLoadGeneration += 1;
   chromeSession?.destroy?.();
   chromeSession = null;
 }

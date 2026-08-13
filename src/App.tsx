@@ -64,6 +64,8 @@ export default function App() {
   const [webMcp, setWebMcp] = useState<WebMcpStatus>('available');
   const [planner, setPlanner] = useState<'demo' | 'chrome' | 'litert' | 'bonsai'>('demo');
   const [loadingPlanner, setLoadingPlanner] = useState<'chrome' | 'litert' | 'bonsai' | null>(null);
+  const runtimeRequestRef = useRef(0);
+  const runtimeActivationBusyRef = useRef(false);
   const [chromeAvailability, setChromeAvailability] = useState<'checking' | 'unavailable' | 'downloadable' | 'downloading' | 'available'>('checking');
   const [engineNote, setEngineNote] = useState('Checking for Chrome’s built-in model…');
   const [pwaReady, setPwaReady] = useState(false);
@@ -146,17 +148,22 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    const requestId = ++runtimeRequestRef.current;
     getChromeModelAvailability().then(async (availability) => {
       if (!active) return;
       setChromeAvailability(availability);
       if (availability === 'available') {
         try {
           await loadChromeModel(setEngineNote);
-          if (!active) return;
+          if (!active || requestId !== runtimeRequestRef.current) {
+            unloadChromeModel();
+            return;
+          }
           setPlanner('chrome');
           setEngineNote('Chrome built-in model active · on device');
           setFeedback({ tone: 'success', title: 'Chrome’s model is ready', detail: 'Your next request will be planned locally with Gemini Nano.' });
         } catch (error) {
+          if (!active || requestId !== runtimeRequestRef.current) return;
           setEngineNote(error instanceof Error ? error.message : 'Chrome model could not start.');
         }
       } else if (availability === 'downloadable' || availability === 'downloading') {
@@ -246,9 +253,12 @@ export default function App() {
   }, [memoryReady, webMcpTools]);
 
   async function activateModel(variant: 'e2b' | 'e4b') {
+    if (runtimeActivationBusyRef.current) return;
     const modelName = variant === 'e4b' ? 'Gemma 4 E4B' : 'Gemma 4 E2B';
     const size = variant === 'e4b' ? '~4 GB' : '~2 GB';
     if (!globalThis.confirm(`Download the ${size} ${modelName} model and run it locally with WebGPU?`)) return;
+    runtimeActivationBusyRef.current = true;
+    const requestId = ++runtimeRequestRef.current;
     setLiteRtVariant(variant);
     setLoadingPlanner('litert');
     setFeedback({ tone: 'working', title: 'Preparing LiteRT-LM', detail: `Downloading and compiling ${modelName}. This can take a while.` });
@@ -258,6 +268,7 @@ export default function App() {
       unloadBonsai();
       setPlanner('demo');
       await loadLiteRt(variant === 'e4b' ? MODEL_E4B_URL : MODEL_URL, setEngineNote);
+      if (requestId !== runtimeRequestRef.current) return;
       setPlanner('litert');
       setPendingClarificationNow(null);
       setPlanReview(null);
@@ -266,21 +277,27 @@ export default function App() {
       log('LiteRT-LM model is ready.', 'local agent');
       setFeedback({ tone: 'success', title: 'LiteRT-LM is ready', detail: `Your next request will use ${modelName} locally through WebGPU.` });
     } catch (error) {
+      if (requestId !== runtimeRequestRef.current) return;
       setEngineNote(error instanceof Error ? error.message : 'Model failed to load.');
       setFeedback({ tone: 'error', title: 'LiteRT-LM could not start', detail: error instanceof Error ? error.message : 'Model failed to load.' });
     } finally {
+      runtimeActivationBusyRef.current = false;
       setLoadingPlanner(null);
     }
   }
 
   async function activateBonsai() {
+    if (runtimeActivationBusyRef.current) return;
     if (!globalThis.confirm('Download the ~3.8 GB Bonsai 27B model and run it locally with WebGPU? A GPU with at least 16 GB of available memory is recommended.')) return;
+    runtimeActivationBusyRef.current = true;
+    const requestId = ++runtimeRequestRef.current;
     setLoadingPlanner('bonsai');
     setFeedback({ tone: 'working', title: 'Preparing Bonsai 27B', detail: 'Downloading the 1-bit GGUF weights and compiling custom WebGPU kernels. This can take a while.' });
     try {
       await unloadLiteRt();
       unloadChromeModel();
       await loadBonsai(setEngineNote);
+      if (requestId !== runtimeRequestRef.current) return;
       setPlanner('bonsai');
       setPendingClarificationNow(null);
       setPlanReview(null);
@@ -290,20 +307,26 @@ export default function App() {
       setFeedback({ tone: 'success', title: 'Bonsai 27B is ready', detail: 'Your next request will use Bonsai locally through custom WebGPU kernels.' });
     } catch (error) {
       unloadBonsai();
+      if (requestId !== runtimeRequestRef.current) return;
       setEngineNote(error instanceof Error ? error.message : 'Bonsai 27B failed to load.');
       setFeedback({ tone: 'error', title: 'Bonsai 27B could not start', detail: error instanceof Error ? error.message : 'Model failed to load.' });
     } finally {
+      runtimeActivationBusyRef.current = false;
       setLoadingPlanner(null);
     }
   }
 
   async function activateChromeModel() {
+    if (runtimeActivationBusyRef.current) return;
+    runtimeActivationBusyRef.current = true;
+    const requestId = ++runtimeRequestRef.current;
     setLoadingPlanner('chrome');
     setFeedback({ tone: 'working', title: 'Preparing Chrome’s model', detail: 'Chrome may download Gemini Nano before creating the local session.' });
     try {
       await unloadLiteRt();
       unloadBonsai();
       await loadChromeModel(setEngineNote);
+      if (requestId !== runtimeRequestRef.current) return;
       setPlanner('chrome');
       setPendingClarificationNow(null);
       setPlanReview(null);
@@ -313,14 +336,18 @@ export default function App() {
       log('Chrome’s built-in model is ready.', 'local agent');
       setFeedback({ tone: 'success', title: 'Chrome’s model is ready', detail: 'Your next request will be planned locally with Gemini Nano.' });
     } catch (error) {
+      if (requestId !== runtimeRequestRef.current) return;
       setEngineNote(error instanceof Error ? error.message : 'Chrome’s model failed to load.');
       setFeedback({ tone: 'error', title: 'Chrome’s model could not start', detail: error instanceof Error ? error.message : 'The built-in model failed to load.' });
     } finally {
+      runtimeActivationBusyRef.current = false;
       setLoadingPlanner(null);
     }
   }
 
   async function useDemoMode() {
+    if (runtimeActivationBusyRef.current) return;
+    runtimeRequestRef.current += 1;
     await unloadLiteRt();
     unloadBonsai();
     unloadChromeModel();
@@ -800,7 +827,7 @@ export default function App() {
           <button className={`runtime-card ${planner === 'bonsai' ? 'selected' : ''}`} onClick={activateBonsai} disabled={loadingPlanner !== null} aria-pressed={planner === 'bonsai'}>
             <span className="runtime-icon lime">🌳</span><span><b>Bonsai custom</b><small>27B · 1-bit GGUF · WebGPU</small></span><i>{loadingPlanner === 'bonsai' ? 'Loading' : 'Load'}</i>
           </button>
-          <button className={`runtime-card ${planner === 'demo' ? 'selected' : ''}`} onClick={useDemoMode} aria-pressed={planner === 'demo'}>
+          <button className={`runtime-card ${planner === 'demo' ? 'selected' : ''}`} onClick={useDemoMode} disabled={loadingPlanner !== null} aria-pressed={planner === 'demo'}>
             <span className="runtime-icon">⚡</span><span><b>Demo rules</b><small>Universal fallback · zero download</small></span><i>Use</i>
           </button>
           <p className="runtime-note">{engineNote}</p>

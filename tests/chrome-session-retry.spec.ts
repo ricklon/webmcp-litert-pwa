@@ -90,3 +90,61 @@ test('rebuilds the Chrome base session when its first clone was destroyed', asyn
   await expect(proposal.getByLabel('title')).toHaveValue('submit expense report');
   await expect.poll(() => page.evaluate(() => (window as typeof window & { chromeCreateCount?: number }).chromeCreateCount)).toBe(2);
 });
+
+test('a late automatic Chrome load cannot override a newer runtime selection', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'LanguageModel', {
+      configurable: true,
+      value: {
+        availability: async () => 'available',
+        create: async () => new Promise((resolve) => {
+          (window as typeof window & { resolveChromeLoad?: () => void }).resolveChromeLoad = () => resolve({
+            prompt: async () => '{"outcome":"answer","calls":[],"message":"ready"}',
+            destroy: () => {
+              const state = window as typeof window & { destroyedChromeSessions?: number };
+              state.destroyedChromeSessions = (state.destroyedChromeSessions ?? 0) + 1;
+            }
+          });
+        })
+      }
+    });
+  });
+  await page.goto('/');
+  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { resolveChromeLoad?: unknown }).resolveChromeLoad)).toBe('function');
+
+  await page.getByRole('button', { name: /Demo rules/ }).click();
+  await page.evaluate(() => (window as typeof window & { resolveChromeLoad?: () => void }).resolveChromeLoad?.());
+
+  await expect(page.locator('.state')).toHaveText('demo');
+  await expect(page.locator('.runtime-note')).toContainText('Demo agent active');
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { destroyedChromeSessions?: number }).destroyedChromeSessions)).toBe(1);
+});
+
+test('runtime cards are locked while an explicit model load is in progress', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'LanguageModel', {
+      configurable: true,
+      value: {
+        availability: async () => 'downloadable',
+        create: async () => new Promise((resolve) => {
+          (window as typeof window & { resolveChromeLoad?: () => void }).resolveChromeLoad = () => resolve({
+            prompt: async () => '{"outcome":"answer","calls":[],"message":"ready"}',
+            destroy: () => undefined
+          });
+        })
+      }
+    });
+  });
+  await page.goto('/');
+  const chrome = page.getByRole('button', { name: /Chrome built-in/ });
+  await expect(chrome).toBeEnabled();
+  await chrome.click();
+
+  await expect(page.getByRole('button', { name: /LiteRT-LM recommended/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /LiteRT-LM lighter/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Bonsai custom/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Demo rules/ })).toBeDisabled();
+
+  await page.evaluate(() => (window as typeof window & { resolveChromeLoad?: () => void }).resolveChromeLoad?.());
+  await expect(page.locator('.state')).toHaveText('chrome');
+});
