@@ -17,6 +17,19 @@ const contractTools: ToolDefinition[] = [
   }
 ];
 
+const addTaskTool: ToolDefinition = {
+  name: 'add_task', description: 'Add a task',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      priority: { type: 'string', enum: ['low', 'medium', 'high'] }
+    },
+    required: ['title']
+  },
+  execute: async () => ({ ok: true })
+};
+
 describe('runtime clock', () => {
   it('provides local, timezone, and UTC context for relative dates', () => {
     const context = buildTemporalContext(new Date('2026-07-25T18:30:00.000Z'), 'America/New_York');
@@ -136,6 +149,20 @@ describe('tool contracts', () => {
     expect(plan.calls[0].arguments.task).toBe('buy apples');
   });
 
+  it('normalizes common priority labels case-insensitively', () => {
+    const plan = authorizeToolPlan({
+      outcome: 'act', message: 'Done', calls: [{ name: 'add_task', arguments: { title: 'file report', priority: 'Urgent' } }]
+    }, [addTaskTool], 'Add file report as urgent');
+    expect(plan.calls[0].arguments.priority).toBe('high');
+  });
+
+  it('uses the requested priority when the model emits a non-string value', () => {
+    const plan = authorizeToolPlan({
+      outcome: 'act', message: 'Done', calls: [{ name: 'add_task', arguments: { title: 'file report', priority: { value: 'high' } } }]
+    }, [addTaskTool], 'Add file report as high priority');
+    expect(plan.calls[0].arguments.priority).toBe('high');
+  });
+
   it('rejects calls missing required arguments', () => {
     expect(() => authorizeToolPlan({ outcome: 'act', message: 'Done', calls: [{ name: 'complete_task', arguments: {} }] }, contractTools))
       .toThrow('Missing required argument');
@@ -170,6 +197,12 @@ describe('planner output recovery', () => {
     const result = parsePlannerOutput('{"outcome":"complete_task","calls":[{"name":"complete_task","arguments":{"task":"abc"}}],"message":"Done"}', true);
     expect(result.plan.outcome).toBe('act');
     expect(result.diagnostics.recoverySteps).toContain('normalized-outcome-alias');
+  });
+
+  it('recovers a tool argument object emitted as a JSON string', () => {
+    const result = parsePlannerOutput('{"outcome":"act","calls":[{"name":"add_task","arguments":"{\\"title\\":\\"buy filters\\",\\"priority\\":\\"medium\\"}"}],"message":"Done"}', true);
+    expect(result.plan.calls[0].arguments).toEqual({ title: 'buy filters', priority: 'medium' });
+    expect(result.diagnostics.recoverySteps).toContain('parsed-stringified-arguments');
   });
 
   it('does not turn an alias into an action without a tool call', () => {

@@ -469,7 +469,7 @@ export default function App() {
       log(formatPlannerActivity(metrics), 'local agent');
       const guarded = enforceSafetyGuardrails(proposedPlan, request, tasksRef.current);
       traceGuardrails = guarded.interventions;
-      const plan = authorizeToolPlan(enforceExplicitBulkCompletion(guarded.plan, request, tasksRef.current), tools);
+      const plan = authorizeToolPlan(enforceExplicitBulkCompletion(guarded.plan, request, tasksRef.current), tools, request);
       tracePlan = { ...plan, metrics };
       if (plan.outcome === 'clarify') {
         setPendingClarificationNow({ request: originalRequest, question: plan.message });
@@ -505,7 +505,7 @@ export default function App() {
   async function approvePlan() {
     if (!planReview || planReview.status !== 'proposed' || busy || !hasRequiredArguments(planReview.plan)) return;
     setBusy(true);
-    try { await executePlan(authorizeToolPlan(planReview.plan, tools), planReview.originalRequest); }
+    try { await executePlan(authorizeToolPlan(planReview.plan, tools, planReview.originalRequest), planReview.originalRequest); }
     catch (error) {
       log(error instanceof Error ? error.message : 'The agent could not execute that plan.', 'local agent');
       setFeedback({ tone: 'error', title: 'Execution failed', detail: error instanceof Error ? error.message : 'The agent could not execute that plan.' });

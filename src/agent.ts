@@ -247,7 +247,23 @@ function normalizeSafeEnvelopeAliases(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { value, steps: [] as string[] };
   const record = { ...(value as Record<string, unknown>) };
   const steps: string[] = [];
-  const calls = Array.isArray(record.calls) ? record.calls : [];
+  const calls = Array.isArray(record.calls) ? record.calls.map((call) => {
+    if (!call || typeof call !== 'object' || Array.isArray(call)) return call;
+    const normalizedCall = { ...(call as Record<string, unknown>) };
+    if (typeof normalizedCall.arguments === 'string') {
+      try {
+        const parsedArguments = JSON.parse(normalizedCall.arguments);
+        if (parsedArguments && typeof parsedArguments === 'object' && !Array.isArray(parsedArguments)) {
+          normalizedCall.arguments = parsedArguments;
+          steps.push('parsed-stringified-arguments');
+        }
+      } catch {
+        // Leave non-JSON strings invalid so the model gets one correction retry.
+      }
+    }
+    return normalizedCall;
+  }) : [];
+  if (Array.isArray(record.calls)) record.calls = calls;
   if (calls.length > 0 && ['complete', 'complete_task', 'execute', 'tool'].includes(String(record.outcome))) {
     record.outcome = 'act';
     steps.push('normalized-outcome-alias');
@@ -494,7 +510,27 @@ function validateArguments(schema: Record<string, unknown>, args: Record<string,
 }
 
 /** The model decides intent; the application validates capability contracts. */
-export function authorizeToolPlan(plan: AgentPlan, tools: ToolDefinition[]): AgentPlan {
+function normalizeAddTaskPriority(arguments_: Record<string, unknown>, request: string) {
+  if (!('priority' in arguments_)) return arguments_;
+  const requested = request.toLowerCase();
+  const fallback = /\b(urgent|important|high(?:est)?(?:\s+priority)?)\b/.test(requested)
+    ? 'high'
+    : /\b(low(?:est)?(?:\s+priority)?|someday|minor)\b/.test(requested)
+      ? 'low'
+      : 'medium';
+  if (typeof arguments_.priority !== 'string') return { ...arguments_, priority: fallback };
+  const value = arguments_.priority.trim().toLowerCase();
+  const priority = ['high', 'urgent', 'important', 'highest'].includes(value)
+    ? 'high'
+    : ['low', 'someday', 'minor', 'lowest'].includes(value)
+      ? 'low'
+      : ['medium', 'normal', 'default', 'moderate'].includes(value)
+        ? 'medium'
+        : fallback;
+  return { ...arguments_, priority };
+}
+
+export function authorizeToolPlan(plan: AgentPlan, tools: ToolDefinition[], request = ''): AgentPlan {
   if (plan.outcome !== 'act' && plan.calls.length > 0) throw new Error(`A ${plan.outcome} response cannot execute tool calls.`);
   if (plan.outcome === 'act' && plan.calls.length === 0) throw new Error('An action response requires at least one tool call.');
   if (plan.calls.length > 10) throw new Error('The model proposed too many tool calls.');
@@ -503,9 +539,10 @@ export function authorizeToolPlan(plan: AgentPlan, tools: ToolDefinition[]): Age
     if (!tool) throw new Error(`The model proposed unknown tool “${call.name}”.`);
     if (!call.arguments || typeof call.arguments !== 'object' || Array.isArray(call.arguments)) throw new Error(`Tool “${call.name}” requires an argument object.`);
     const completionAlias = call.arguments.title ?? call.arguments.id;
-    const normalizedArguments = call.name === 'complete_task' && !('task' in call.arguments) && completionAlias !== undefined
+    let normalizedArguments = call.name === 'complete_task' && !('task' in call.arguments) && completionAlias !== undefined
       ? { ...call.arguments, task: completionAlias }
       : call.arguments;
+    if (call.name === 'add_task') normalizedArguments = normalizeAddTaskPriority(normalizedArguments, request);
     validateArguments(tool.inputSchema, normalizedArguments);
     return { ...call, arguments: normalizedArguments };
   });
@@ -606,7 +643,7 @@ export async function planWithLiteRt(prompt: string, tools: ToolDefinition[], ta
   const firstRaw = response.content.map((item) => item.text ?? '').join('');
   try {
     const parsed = parsePlannerOutput(firstRaw, true);
-    const authorized = authorizeToolPlan(parsed.plan, tools);
+    const authorized = authorizeToolPlan(parsed.plan, tools, prompt);
     return {
       ...authorized,
       outputDiagnostics: parsed.diagnostics,
@@ -621,7 +658,7 @@ export async function planWithLiteRt(prompt: string, tools: ToolDefinition[], ta
     const retryRaw = retry.content.map((item) => item.text ?? '').join('');
     try {
       const parsed = parsePlannerOutput(retryRaw, true);
-      const authorized = authorizeToolPlan(parsed.plan, tools);
+      const authorized = authorizeToolPlan(parsed.plan, tools, prompt);
       return {
         ...authorized,
         outputDiagnostics: {
