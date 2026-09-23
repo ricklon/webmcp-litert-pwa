@@ -39,10 +39,16 @@ export function findTask(tasks: Task[], requested: unknown) {
   if (byId) return { task: byId, candidates: [] as Task[] };
   const query = normalize(rawQuery);
   if (!query) return { task: undefined, candidates: [] as Task[] };
-  const direct = tasks.filter((item) => normalize(item.title).includes(query) || query.includes(normalize(item.title)));
+  // Match whole words only, so "recall notes" cannot select a task titled "Call".
+  const containsPhrase = (text: string, phrase: string) => ` ${text} `.includes(` ${phrase} `);
+  const titled = tasks.filter((item) => normalize(item.title));
+  const direct = titled.filter((item) => {
+    const title = normalize(item.title);
+    return containsPhrase(title, query) || containsPhrase(query, title);
+  });
   if (direct.length === 1) return { task: direct[0], candidates: [] as Task[] };
   if (direct.length > 1) return { task: undefined, candidates: direct };
-  const ranked = tasks
+  const ranked = titled
     .map((item) => ({ item, distance: editDistance(normalize(item.title), query) }))
     .sort((left, right) => left.distance - right.distance);
   const best = ranked[0];

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTools } from './tools';
+import { createTools, findTask } from './tools';
 import type { Task } from './types';
 
 function harness() {
@@ -75,5 +75,23 @@ describe('clear_completed', () => {
     const result = await app.tools.find((tool) => tool.name === 'clear_completed')!.execute({});
     expect(result).toEqual({ ok: false, cancelled: true });
     expect(app.getTasks()).toHaveLength(1);
+  });
+});
+
+describe('findTask', () => {
+  const task = (id: string, title: string): Task => ({ id, title, priority: 'medium', completed: false, createdAt: '' });
+
+  it('does not match a title that only appears inside another word', () => {
+    expect(findTask([task('call', 'Call')], 'recall notes').task).toBeUndefined();
+  });
+
+  it('still matches a title contained as whole words', () => {
+    expect(findTask([task('call', 'Call')], 'call mom').task?.id).toBe('call');
+    expect(findTask([task('filters', 'buy coffee filters')], 'coffee filters').task?.id).toBe('filters');
+  });
+
+  it('never matches a title with no words', () => {
+    expect(findTask([task('blank', '!!!'), task('call', 'call mom')], 'call mom').task?.id).toBe('call');
+    expect(findTask([task('blank', '!!!')], 'ab').task).toBeUndefined();
   });
 });

@@ -12,6 +12,7 @@ export const AGENT_SYSTEM_PROMPT = 'You are a careful local task-planning agent.
 
 type Conversation = {
   sendMessage: (message: string) => Promise<{ content: Array<{ type?: string; text?: string }> }>;
+  delete?: () => Promise<void>;
 };
 
 type Engine = {
@@ -639,6 +640,22 @@ export async function planWithLiteRt(prompt: string, tools: ToolDefinition[], ta
   if (!engine) throw new Error('LiteRT-LM is not loaded.');
   const startedAt = performance.now();
   const requestConversation = await engine.createConversation(conversationConfig);
+  try {
+    return await planWithLiteRtConversation(requestConversation, prompt, tools, tasks, history, startedAt);
+  } finally {
+    // Each plan uses a fresh conversation; release its runtime memory.
+    await requestConversation.delete?.().catch((error) => console.warn('LiteRT-LM conversation cleanup failed', error));
+  }
+}
+
+async function planWithLiteRtConversation(
+  requestConversation: Conversation,
+  prompt: string,
+  tools: ToolDefinition[],
+  tasks: Task[],
+  history: Activity[],
+  startedAt: number
+): Promise<AgentPlan> {
   const response = await requestConversation.sendMessage(buildAgentPrompt(prompt, tools, tasks, history));
   const firstRaw = response.content.map((item) => item.text ?? '').join('');
   try {

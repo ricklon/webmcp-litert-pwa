@@ -815,19 +815,19 @@ export default function App() {
         <aside className="runtime-panel">
           <p className="kicker">02 / Runtime</p>
           <h2>Planner source</h2>
-          <button className={`runtime-card ${planner === 'chrome' ? 'selected' : ''}`} onClick={activateChromeModel} disabled={loadingPlanner !== null || chromeAvailability === 'unavailable' || chromeAvailability === 'checking'} aria-pressed={planner === 'chrome'}>
+          <button className={`runtime-card ${planner === 'chrome' ? 'selected' : ''}`} onClick={activateChromeModel} disabled={busy || loadingPlanner !== null || chromeAvailability === 'unavailable' || chromeAvailability === 'checking'} aria-pressed={planner === 'chrome'}>
             <span className="runtime-icon chrome">◉</span><span><b>Chrome built-in</b><small>Gemini Nano · managed by Chrome</small></span><i>{loadingPlanner === 'chrome' ? 'Loading' : chromeAvailability === 'downloadable' ? 'Enable' : 'Use'}</i>
           </button>
-          <button className={`runtime-card ${planner === 'litert' && liteRtVariant === 'e4b' ? 'selected' : ''}`} onClick={() => activateModel('e4b')} disabled={loadingPlanner !== null} aria-pressed={planner === 'litert' && liteRtVariant === 'e4b'}>
+          <button className={`runtime-card ${planner === 'litert' && liteRtVariant === 'e4b' ? 'selected' : ''}`} onClick={() => activateModel('e4b')} disabled={busy || loadingPlanner !== null} aria-pressed={planner === 'litert' && liteRtVariant === 'e4b'}>
             <span className="runtime-icon lime">◆</span><span><b>LiteRT-LM recommended</b><small>Gemma 4 E4B · stronger JSON · WebGPU</small></span><i>{loadingPlanner === 'litert' && liteRtVariant === 'e4b' ? 'Loading' : 'Load'}</i>
           </button>
-          <button className={`runtime-card ${planner === 'litert' && liteRtVariant === 'e2b' ? 'selected' : ''}`} onClick={() => activateModel('e2b')} disabled={loadingPlanner !== null} aria-pressed={planner === 'litert' && liteRtVariant === 'e2b'}>
+          <button className={`runtime-card ${planner === 'litert' && liteRtVariant === 'e2b' ? 'selected' : ''}`} onClick={() => activateModel('e2b')} disabled={busy || loadingPlanner !== null} aria-pressed={planner === 'litert' && liteRtVariant === 'e2b'}>
             <span className="runtime-icon lime">◇</span><span><b>LiteRT-LM lighter</b><small>Gemma 4 E2B · faster · WebGPU</small></span><i>{loadingPlanner === 'litert' && liteRtVariant === 'e2b' ? 'Loading' : 'Load'}</i>
           </button>
-          <button className={`runtime-card ${planner === 'bonsai' ? 'selected' : ''}`} onClick={activateBonsai} disabled={loadingPlanner !== null} aria-pressed={planner === 'bonsai'}>
+          <button className={`runtime-card ${planner === 'bonsai' ? 'selected' : ''}`} onClick={activateBonsai} disabled={busy || loadingPlanner !== null} aria-pressed={planner === 'bonsai'}>
             <span className="runtime-icon lime">🌳</span><span><b>Bonsai custom</b><small>27B · 1-bit GGUF · WebGPU</small></span><i>{loadingPlanner === 'bonsai' ? 'Loading' : 'Load'}</i>
           </button>
-          <button className={`runtime-card ${planner === 'demo' ? 'selected' : ''}`} onClick={useDemoMode} disabled={loadingPlanner !== null} aria-pressed={planner === 'demo'}>
+          <button className={`runtime-card ${planner === 'demo' ? 'selected' : ''}`} onClick={useDemoMode} disabled={busy || loadingPlanner !== null} aria-pressed={planner === 'demo'}>
             <span className="runtime-icon">⚡</span><span><b>Demo rules</b><small>Universal fallback · zero download</small></span><i>Use</i>
           </button>
           <p className="runtime-note">{engineNote}</p>
@@ -846,7 +846,7 @@ export default function App() {
             <div><p className="kicker">03 / Result</p><h2>Today <sup data-testid="today-open-count" aria-label={`${openCount} open tasks`}>{openCount} open</sup></h2></div>
             <div className="today-actions">
               <span className="task-totals" data-testid="today-total-count" aria-live="polite">{tasks.length} total · {completedCount} done</span>
-              <button className="reset-data" onClick={resetLocalData} disabled={tasks.length === 0 && activity.length === 0 && scenarioState === 'idle'}>Reset local data</button>
+              <button className="reset-data" onClick={resetLocalData} disabled={busy || (tasks.length === 0 && activity.length === 0 && scenarioState === 'idle')}>Reset local data</button>
             </div>
           </div>
           {tasks.length === 0 ? (
