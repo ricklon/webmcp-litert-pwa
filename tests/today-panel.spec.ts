@@ -45,7 +45,6 @@ test('Today reflects every task lifecycle transition', async ({ page }) => {
   await panel.getByRole('button', { name: 'Mark buy coffee filters complete' }).click();
   await page.getByLabel('What should we get done?').fill('Clear completed tasks');
   await page.locator('.prompt-box').getByRole('button', { name: /Plan/ }).click();
-  page.once('dialog', (dialog) => dialog.accept());
   await approveProposal(page);
   await expect(open).toHaveText('0 open');
   await expect(totals).toHaveText('0 total · 0 done');

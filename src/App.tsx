@@ -393,7 +393,7 @@ export default function App() {
       setFeedback({ tone: 'working', title: `Calling ${call.name}`, detail: `Using ${JSON.stringify(call.arguments)}`, tools: plan.calls.map((item) => item.name) });
       const result = await executeLocalTool(tools, call, 'local agent');
       if (result && typeof result === 'object' && 'ok' in result && result.ok === false) {
-        const failure = result as { error?: string; cancelled?: boolean; ambiguous?: boolean; candidates?: Array<{ title: string }> };
+        const failure = result as { error?: string; ambiguous?: boolean; candidates?: Array<{ title: string }> };
         if (failure.ambiguous && failure.candidates?.length) {
           const question = `Which task should I complete: ${failure.candidates.map((candidate) => `“${candidate.title}”`).join(' or ')}?`;
           setPendingClarificationNow({ request: originalRequest, question });
@@ -402,7 +402,7 @@ export default function App() {
           setFeedback({ tone: 'clarify', title: 'More information needed', detail: question });
           return { status: 'clarification', message: question } satisfies RequestResult;
         }
-        throw new Error(failure.cancelled ? 'Action cancelled.' : failure.error ?? `${call.name} failed.`);
+        throw new Error(failure.error ?? `${call.name} failed.`);
       }
       results.push({ name: call.name, value: result });
     }

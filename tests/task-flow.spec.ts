@@ -38,12 +38,17 @@ test('adds, completes, and clears a task with visible feedback', async ({ page }
   await expect(page.getByText('1 total · 1 done')).toBeVisible();
   await expect(page.locator('.run-feedback')).toContainText('complete_task');
 
+  const dialogs: string[] = [];
+  page.on('dialog', (dialog) => {
+    dialogs.push(dialog.message());
+    void dialog.dismiss();
+  });
   await page.getByLabel('What should we get done?').fill('Clear completed tasks');
   await page.locator('.prompt-box').getByRole('button', { name: /Plan/ }).click();
-  page.once('dialog', (dialog) => dialog.accept());
   await approveProposal(page);
 
   await expect(page.getByText('No tasks yet.')).toBeVisible();
+  expect(dialogs).toEqual([]);
   await expect(page.getByText('0 total · 0 done')).toBeVisible();
   await expect(page.locator('.run-feedback')).toContainText('clear_completed');
 });
@@ -120,7 +125,6 @@ test('clear-finished scenario preserves open work', async ({ page }) => {
   await page.getByRole('button', { name: 'Load scenario' }).click();
   await expect(page.getByText('3 total · 2 done')).toBeVisible();
 
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Run workflow' }).click();
 
   await expect(page.locator('.scenario-state')).toHaveText('passed');

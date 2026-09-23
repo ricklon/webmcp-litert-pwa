@@ -156,7 +156,7 @@ Keep native WebMCP tests Chromium-only and feature-detect `document.modelContext
 - LiteRT-LM's browser API is early preview and currently supports only designated web `.litertlm` models.
 - Custom-model downloads are large; the app never starts them without an explicit click. Bonsai requires WebGPU and may fail or run slowly on memory-constrained GPUs.
 - WebMCP is an origin-trial/proposed API and needs a compatible Chrome version or local flag.
-- The production host must send `Origin-Agent-Cluster: ?1`; the Vite dev and preview servers are configured to do so.
+- The Vite dev and preview servers send `Origin-Agent-Cluster: ?1`. GitHub Pages cannot send custom headers, but current Chrome gives pages an origin-keyed agent cluster by default: the live demo reports `window.originAgentCluster === true` in Chrome 153 without the header. Hosts that can set headers may still send it for older browsers.
 - The service worker caches the app shell, not the multi-gigabyte model.
 
 ## Finding compatible models

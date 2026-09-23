@@ -68,13 +68,15 @@ describe('complete_task', () => {
 });
 
 describe('clear_completed', () => {
-  it('does not remove completed tasks when confirmation is declined', async () => {
+  it('removes completed tasks without a second browser confirmation', async () => {
     const app = harness();
     app.getTasks()[0].completed = true;
-    vi.stubGlobal('confirm', vi.fn(() => false));
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
     const result = await app.tools.find((tool) => tool.name === 'clear_completed')!.execute({});
-    expect(result).toEqual({ ok: false, cancelled: true });
-    expect(app.getTasks()).toHaveLength(1);
+    expect(result).toEqual({ ok: true, removed: 1 });
+    expect(app.getTasks()).toHaveLength(0);
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
 

@@ -136,14 +136,12 @@ export function createTools(runtime: ToolRuntime): ToolDefinition[] {
     },
     {
       name: 'clear_completed',
+      // Approval happens in the page's proposal review, never inside the tool.
       description: 'Remove all completed tasks. Only use when the user explicitly asks to clear or delete completed work.',
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       execute: async (_, source = 'browser agent') => {
         const count = runtime.getTasks().filter((task) => task.completed).length;
-        if (count > 0 && !globalThis.confirm(`Remove ${count} completed task${count === 1 ? '' : 's'}?`)) {
-          return { ok: false, cancelled: true };
-        }
         runtime.setTasks((tasks) => tasks.filter((task) => !task.completed));
         runtime.log(`Cleared ${count} completed task${count === 1 ? '' : 's'}.`, source);
         return { ok: true, removed: count };
