@@ -237,6 +237,19 @@ now pass in every run. Only the six-item event-trip story still fails, and
 Needle-first routing sends that request to the larger model because of its
 length. Report: `benchmark-results/needle-3run.json`.
 
+The benchmark's finished-work request (“I packed a sldering iron as well”)
+understates how phrasing-sensitive this is. On 22 hand-written requests (12
+past-tense updates, 7 future to-dos, and 3 list or clear commands), the first
+descriptions chose the right tool 13 times; spelled correctly, the soldering
+request became `add_task`, and “I washed the car” became `clear_completed`.
+Descriptions that name the tense explicitly (“still needs to do in the
+future”, “described in the past tense”) raised that to 16/22 with no
+`clear_completed` misfires, and the benchmark score stayed at 33/36. Needle
+still confuses some past and future statements, so the proposal review
+remains the safeguard. Independently of the model, the app now refuses
+`clear_completed` unless the request says clear, remove, delete, purge, or
+wipe (`unrequested-clear`).
+
 Switching tool catalogs has a cost: Needle re-reads the full 348-token catalog
 in about 4.4 s on this CPU, versus 0.9 s for the 82-token choice catalog. The
 worker restores the full catalog in the background right after a choice, which

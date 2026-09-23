@@ -99,8 +99,8 @@ npm run benchmark:litert-e4b
 npm run benchmark:bonsai-thinking
 ```
 
-The app applies deterministic safety checks to explicit completion and
-unsupported communication requests after planning. Benchmark traces retain the
+The app applies deterministic safety checks to explicit completion,
+unsupported communication, and unrequested clear requests after planning. Benchmark traces retain the
 raw model calls and the guarded calls separately, including the intervention
 name, so runtime safety improvements do not hide model errors.
 

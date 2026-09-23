@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { authorizeToolPlan, buildBonsaiPlanSchema, buildConversationContext, buildTemporalContext, enforceExplicitBulkCompletion, enforceSafetyGuardrails, parsePlannerOutput, planDeterministically } from './agent';
 import { validateJsonSchema } from 'bitgpu/chat';
-import type { Activity } from './types';
+import type { Activity, AgentPlan } from './types';
 import type { ToolDefinition } from './tools';
 
 const contractTools: ToolDefinition[] = [
@@ -243,5 +243,12 @@ describe('deterministic safety guardrails', () => {
     const result = enforceSafetyGuardrails(unsafe, 'Complete review report', tasks);
     expect(result.plan.calls).toEqual([{ name: 'complete_task', arguments: { task: 'review' } }]);
     expect(result.interventions).toEqual(['constrained-completion-target']);
+  });
+
+  it('blocks clear_completed unless the request asks to clear, remove, or delete', () => {
+    const clear: AgentPlan = { outcome: 'act', calls: [{ name: 'clear_completed', arguments: {} }], message: '' };
+    expect(enforceSafetyGuardrails(clear, 'I washed the car', []).interventions).toEqual(['unrequested-clear']);
+    expect(enforceSafetyGuardrails(clear, 'I washed the car', []).plan.calls).toEqual([]);
+    expect(enforceSafetyGuardrails(clear, 'Remove the finished tasks', []).interventions).toEqual([]);
   });
 });

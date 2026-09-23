@@ -324,7 +324,7 @@ export function buildConversationContext(history: Activity[]) {
   return lines.length ? lines.join('\n') : '(none)';
 }
 
-function buildAgentPrompt(prompt: string, tools: ToolDefinition[], tasks: Task[], history: Activity[] = []) {
+export function buildAgentPrompt(prompt: string, tools: ToolDefinition[], tasks: Task[], history: Activity[] = []) {
   const catalog = tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
   return [
     'Plan tool calls for the user request.',
@@ -568,6 +568,13 @@ export function enforceExplicitBulkCompletion(plan: AgentPlan, request: string, 
 
 export function enforceSafetyGuardrails(plan: AgentPlan, request: string, tasks: Task[]) {
   const text = request.trim();
+  // A bulk delete must be asked for in words, whatever the model inferred.
+  if (plan.calls.some((call) => call.name === 'clear_completed') && !/\b(clear|remove|delete|purge|wipe)\b/i.test(text)) {
+    return {
+      plan: { ...plan, outcome: 'answer' as const, calls: [], message: 'I did not clear completed tasks because the request did not ask me to.' },
+      interventions: ['unrequested-clear']
+    };
+  }
   const unsupportedImperative = text.match(/^(?:please\s+)?(email|text|message)\b/i)?.[1];
   if (unsupportedImperative) {
     return {

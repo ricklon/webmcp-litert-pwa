@@ -71,13 +71,13 @@ export function buildNeedleToolCatalog(tools: ToolDefinition[]) {
   const catalog = tools.map(({ name, description, inputSchema }) => ({
     name,
     description: name === 'add_task'
-      ? 'Add one new task the user still needs to do. Use the user\'s own words for the title, including the action verb, for example \'book a dentist appointment\'. Call once for each distinct task.'
+      ? 'Add one new task the user still needs to do in the future, such as \'I need to wash the car\' or \'remind me to pay rent\'. Use the user\'s own words for the title, including the action verb. Never use it for something the user already did. Call once for each distinct task.'
       : name === 'complete_task' ? 'Mark an existing task on the list complete by its title.' : description,
     parameters: inputSchema
   }));
   const record = {
     name: RECORD_FINISHED_TASK,
-    description: 'Record something the user says they already did, such as \'I packed the charger\' or \'I bought the tickets\'. Saves it as a completed task.',
+    description: 'Record something the user says they already did, described in the past tense, such as \'I packed the charger\', \'I washed the car\', \'I already bought the tickets\', or \'paid the rent\'. Saves it as a completed task.',
     parameters: { type: 'object', properties: { title: { type: 'string', description: 'What the user did, as a short task title.' } }, required: ['title'] }
   };
   // Order matters to Needle; this is the order used in the tool-catalog trial.
