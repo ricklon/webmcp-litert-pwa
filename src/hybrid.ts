@@ -3,10 +3,11 @@ import { findTask } from './tools';
 import type { AgentPlan, Task } from './types';
 
 // Needle 3 is fast and reliable on short, direct commands. These limits come
-// from the Needle benchmark: long stories, low-confidence plans, follow-ups, and
-// completions of tasks that do not exist are where it fails.
+// from the Needle benchmark: long stories, low-confidence plans, open-ended
+// follow-ups, and completions of tasks that do not exist are where it fails.
 export const NEEDLE_MAX_WORDS = 25;
-export const NEEDLE_MIN_CONFIDENCE = 0.7;
+// Correct short plans in the tool-catalog trial scored 0.63 or higher.
+export const NEEDLE_MIN_CONFIDENCE = 0.6;
 
 export type EscalationReason = 'follow-up' | 'long-request' | 'no-calls' | 'low-confidence' | 'unknown-completion-target';
 
@@ -32,9 +33,14 @@ export function postNeedleEscalation(plan: AgentPlan, confidence: number | undef
   if (plan.calls.length === 0) return 'no-calls';
   if (confidence !== undefined && confidence < NEEDLE_MIN_CONFIDENCE) return 'low-confidence';
   const openTasks = tasks.filter((task) => !task.completed);
+  // Titles added earlier in the same plan count as known completion targets.
+  const addedTitles = new Set<string>();
   const unknownTarget = plan.calls.some((call) => {
+    if (call.name === 'add_task') addedTitles.add(String(call.arguments.title ?? '').trim().toLowerCase());
     if (call.name !== 'complete_task') return false;
-    const target = findTask(openTasks, call.arguments.task ?? call.arguments.title ?? call.arguments.id);
+    const requested = call.arguments.task ?? call.arguments.title ?? call.arguments.id;
+    if (addedTitles.has(String(requested ?? '').trim().toLowerCase())) return false;
+    const target = findTask(openTasks, requested);
     return !target.task && target.candidates.length === 0;
   });
   return unknownTarget ? 'unknown-completion-target' : null;

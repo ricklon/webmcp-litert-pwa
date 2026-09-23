@@ -210,13 +210,48 @@ decisions, Needle (67%) matches LiteRT E2B (67%) and trails Bonsai (73%) with a
 short, direct commands; requests that depend on the current task list or on
 multi-step inference still need a larger planner.
 
+### Needle-specific tools
+
+Needle chooses one tool per intent, and three of its four failures were
+requests that no single tool matched. Needle now gets its own view of the
+tools while the app's four-tool contract, other planners, and WebMCP stay
+unchanged:
+
+- `add_task` asks for the user's own wording, including the action verb.
+- A Needle-only `record_finished_task` covers work the user already did. The
+  app translates it into `complete_task` for a matching open task, or
+  `add_task` followed by `complete_task`, and drops a repeated completion of
+  the same item.
+- While a "Which task should I complete?" question lists specific open tasks,
+  Needle is re-initialized with only `complete_task`, limited to those titles.
+
+The same three-run benchmark on the same laptop now scores:
+
+| Runtime | Strict scenarios | Exact decisions | Clarification | Median | p95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Needle 3, original tools | 24/36 | 80% | 6/6, 9 asked | 1.39 s | 3.42 s |
+| Needle 3, Needle-specific tools | 33/36 | 93% | 6/6, 6 asked | 1.39 s | 6.41 s |
+
+The ambiguous-completion follow-up, newly finished work, and priority title
+now pass in every run. Only the six-item event-trip story still fails, and
+Needle-first routing sends that request to the larger model because of its
+length. Report: `benchmark-results/needle-3run.json`.
+
+Switching tool catalogs has a cost: Needle re-reads the full 348-token catalog
+in about 4.4 s on this CPU, versus 0.9 s for the 82-token choice catalog. The
+worker restores the full catalog in the background right after a choice, which
+is hidden when the user pauses; the benchmark starts the next scenario
+immediately, which is why the finished-work step after the clarification
+scenario shows the 6.4 s p95.
+
 ## Needle-first routing (September 23, 2026)
 
 Needle-first routing pairs Needle 3 with the loaded larger model. Needle plans
 every request unless it is a follow-up (clarification answer or refinement) or
 longer than 25 words. Its plan is then escalated to the larger model if it has
-no calls, confidence below 0.7, or a completion target that matches no open
-task, unless the deterministic guardrails will decide that request anyway.
+no calls, confidence below the threshold (0.7 in this pass, 0.6 since the
+Needle-specific tools), or a completion target that matches no open task,
+unless the deterministic guardrails will decide that request anyway.
 
 A one-run pass of the twelve cases paired Needle with LiteRT Gemma 4 E2B on
 the same Intel Core i7-10610U laptop, using its UHD Graphics (Gen9) GPU
@@ -239,3 +274,9 @@ output on this Intel Gen9 GPU (Mesa 25.2.8), both with and without Needle, so
 all three escalated steps failed. An end-to-end hybrid score needs a machine
 where the larger model works, such as the Chrome-capable profile used for the
 baselines above (`BENCHMARK_MODELS=chrome,chrome+needle`).
+
+With the Needle-specific tools, the clarification follow-up and the
+newly-finished-work statement stay with Needle, so in this benchmark only the
+long event-trip story still needs the larger model. That follows from the
+routing rules and the Needle-only results above; the paired run has not been
+repeated.

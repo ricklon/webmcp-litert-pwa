@@ -11,8 +11,8 @@ type NeedleModule = {
 };
 
 export type NeedleWorkerRequest =
-  | { id: number; type: 'load'; modelUrl: string; modelSha256: string; systemPrompt: string; toolsJson: string }
-  | { id: number; type: 'plan'; input: string; maxNewTokens: number };
+  | { id: number; type: 'load'; modelUrl: string; modelSha256: string; toolsJson: string }
+  | { id: number; type: 'plan'; input: string; maxNewTokens: number; toolsJson: string };
 
 export type NeedleWorkerResponse =
   | { id: number; type: 'progress'; message: string }
@@ -24,6 +24,8 @@ const OUTPUT_CAPACITY = 16_384;
 
 let needle: NeedleModule | null = null;
 let outputPointer = 0;
+let activeTools = '';
+let defaultTools = '';
 let queue = Promise.resolve();
 
 // Typed locally: the shared tsconfig uses DOM types, which conflict with the webworker lib.
@@ -104,15 +106,24 @@ async function load(request: Extract<NeedleWorkerRequest, { type: 'load' }>) {
   if (Number(module.ccall('needle_load', 'number', ['number', 'number'], [pointer, BigInt(bytes.byteLength)])) < 0) {
     throw new Error(`Needle could not load its weights: ${lastError(module)}`);
   }
-  const prefix = Number(module.ccall('needle_init', 'number', ['string', 'string', 'number'], [request.systemPrompt, request.toolsJson, 0]));
-  if (prefix < 0) throw new Error(`Needle could not accept the tool catalog: ${lastError(module)}`);
+  const prefix = initTools(module, request.toolsJson);
+  defaultTools = request.toolsJson;
   outputPointer ||= module._malloc(OUTPUT_CAPACITY);
   needle = module;
   return { prefixTokens: prefix };
 }
 
+/** Needle can be re-initialized with a different tool catalog without reloading weights. */
+function initTools(module: NeedleModule, toolsJson: string) {
+  const prefix = Number(module.ccall('needle_init', 'number', ['string', 'string', 'number'], ['', toolsJson, 0]));
+  if (prefix < 0) throw new Error(`Needle could not accept the tool catalog: ${lastError(module)}`);
+  activeTools = toolsJson;
+  return prefix;
+}
+
 function plan(request: Extract<NeedleWorkerRequest, { type: 'plan' }>) {
   if (!needle) throw new Error('Needle 3 is not loaded.');
+  if (request.toolsJson !== activeTools) initTools(needle, request.toolsJson);
   needle.ccall('needle_reset', null, [], []);
   const status = Number(needle.ccall('needle_complete', 'number', ['string', 'number', 'number', 'number'],
     [request.input, request.maxNewTokens, outputPointer, OUTPUT_CAPACITY]));
@@ -128,6 +139,11 @@ scope.onmessage = (event) => {
       post({ id: request.id, type: 'result', value });
     } catch (error) {
       post({ id: request.id, type: 'error', message: error instanceof Error ? error.message : String(error) });
+    }
+    // Re-reading the full catalog takes seconds on CPU, so restore it right
+    // after a one-off catalog while the user reads the result.
+    if (needle && defaultTools && activeTools !== defaultTools) {
+      try { initTools(needle, defaultTools); } catch (error) { console.warn('Needle could not restore its tool catalog', error); }
     }
   });
 };

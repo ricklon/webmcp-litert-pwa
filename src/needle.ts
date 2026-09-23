@@ -1,6 +1,6 @@
 import { PlannerOutputError } from './agent';
-import type { ToolDefinition } from './tools';
-import type { AgentPlan, ToolCall } from './types';
+import { findTask, type ToolDefinition } from './tools';
+import type { AgentPlan, Task, ToolCall } from './types';
 import type { NeedleWorkerRequest, NeedleWorkerResponse } from './needle.worker';
 
 const NEEDLE_REVISION = 'b274efcb211a9eef48c9a88da4b43bd569696a39';
@@ -17,6 +17,7 @@ type NeedleOutput = {
 };
 
 let worker: Worker | null = null;
+let defaultToolsJson = '';
 let nextRequestId = 0;
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; onProgress?: (message: string) => void }>();
 
@@ -58,19 +59,78 @@ function send<T>(request: WithoutId<NeedleWorkerRequest>, onProgress?: (message:
   });
 }
 
-/** Needle expects OpenAI-style function declarations. */
+const RECORD_FINISHED_TASK = 'record_finished_task';
+
+/**
+ * Needle picks exactly one tool per intent, so it gets its own view of the app's
+ * tools (OpenAI-style declarations): add_task keeps the user's wording, and
+ * record_finished_task covers work the user already did. Its calls are
+ * translated back to the app's tools before planning continues.
+ */
 export function buildNeedleToolCatalog(tools: ToolDefinition[]) {
-  return tools.map(({ name, description, inputSchema }) => ({ name, description, parameters: inputSchema }));
+  const catalog = tools.map(({ name, description, inputSchema }) => ({
+    name,
+    description: name === 'add_task'
+      ? 'Add one new task the user still needs to do. Use the user\'s own words for the title, including the action verb, for example \'book a dentist appointment\'. Call once for each distinct task.'
+      : name === 'complete_task' ? 'Mark an existing task on the list complete by its title.' : description,
+    parameters: inputSchema
+  }));
+  const record = {
+    name: RECORD_FINISHED_TASK,
+    description: 'Record something the user says they already did, such as \'I packed the charger\' or \'I bought the tickets\'. Saves it as a completed task.',
+    parameters: { type: 'object', properties: { title: { type: 'string', description: 'What the user did, as a short task title.' } }, required: ['title'] }
+  };
+  // Order matters to Needle; this is the order used in the tool-catalog trial.
+  const order = ['add_task', RECORD_FINISHED_TASK, 'complete_task'];
+  const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
+  return [...catalog, record].sort((left, right) => rank(left.name) - rank(right.name));
+}
+
+/** While the user is answering "which task?", Needle may only pick one of the offered tasks. */
+export function buildNeedleChoiceCatalog(choices: string[]) {
+  const listed = choices.map((choice, index) => `${index + 1}) ${choice}`).join(' ');
+  return [{
+    name: 'complete_task',
+    description: `The user is choosing which task to complete. Options: ${listed}. Return the chosen option's exact title.`,
+    parameters: { type: 'object', properties: { task: { type: 'string', enum: choices } }, required: ['task'] }
+  }];
+}
+
+/** Titles offered in a "Which task should I complete: “A” or “B”?" question that are still open tasks. */
+export function clarificationChoices(question: string, tasks: Task[]) {
+  const titles = [...question.matchAll(/“([^”]+)”/g)].map((match) => match[1]);
+  const open = new Set(tasks.filter((task) => !task.completed).map((task) => task.title));
+  return titles.length >= 2 && titles.every((title) => open.has(title)) ? titles : undefined;
+}
+
+/** Rewrites record_finished_task into the app's tools: complete a matching open task, or add it and complete it. */
+export function translateNeedleCalls(calls: ToolCall[], tasks: Task[]): ToolCall[] {
+  const openTasks = tasks.filter((task) => !task.completed);
+  // Work already recorded as finished in this plan, as pseudo-tasks for matching.
+  const recorded: Task[] = [];
+  return calls.flatMap((call): ToolCall[] => {
+    if (call.name === 'complete_task' && recorded.length) {
+      // Needle sometimes repeats a recorded item as a completion; drop the duplicate.
+      if (findTask(recorded, call.arguments.task ?? call.arguments.title).task) return [];
+    }
+    if (call.name !== RECORD_FINISHED_TASK) return [call];
+    const title = String(call.arguments.title ?? '').trim();
+    recorded.push({ id: `recorded-${recorded.length}`, title, priority: 'medium', completed: true, createdAt: '' });
+    const existing = findTask(openTasks, title).task;
+    return existing
+      ? [{ name: 'complete_task', arguments: { task: existing.id } }]
+      : [{ name: 'add_task', arguments: { title } }, { name: 'complete_task', arguments: { task: title } }];
+  });
 }
 
 export async function loadNeedle(tools: ToolDefinition[], onProgress?: (message: string) => void) {
   unloadNeedle();
+  defaultToolsJson = JSON.stringify(buildNeedleToolCatalog(tools));
   await send({
     type: 'load',
     modelUrl: NEEDLE_MODEL_URL,
     modelSha256: NEEDLE_MODEL_SHA256,
-    systemPrompt: '',
-    toolsJson: JSON.stringify(buildNeedleToolCatalog(tools))
+    toolsJson: defaultToolsJson
   }, onProgress);
   return true;
 }
@@ -113,18 +173,24 @@ export function parseNeedleOutput(raw: string): { plan: AgentPlan; confidence?: 
   }
   const confidenceNote = confidence === undefined ? '' : ` (confidence ${confidence.toFixed(2)})`;
   return {
-    plan: { outcome: 'act', calls: calls as ToolCall[], message: `Needle 3 proposed ${calls.length} action${calls.length === 1 ? '' : 's'}${confidenceNote}.` },
+    plan: { outcome: 'act', calls: calls as ToolCall[], message: `Needle 3 proposed a plan${confidenceNote}.` },
     confidence,
     decodeTokensPerSecond
   };
 }
 
-/** The tool catalog is fixed at load time; Needle receives only the request text. */
-export async function planWithNeedle(input: string): Promise<AgentPlan & { confidence?: number }> {
+/**
+ * Needle receives only the request text. With `choices`, it may only pick one
+ * of the tasks offered in a pending clarification question.
+ */
+export async function planWithNeedle(input: string, tasks: Task[], choices?: string[]): Promise<AgentPlan & { confidence?: number }> {
   if (!worker) throw new Error('Needle 3 is not loaded.');
   const startedAt = performance.now();
-  const { output } = await send<{ output: string }>({ type: 'plan', input, maxNewTokens: MAX_NEW_TOKENS });
-  const { plan, confidence, decodeTokensPerSecond } = parseNeedleOutput(output);
+  const toolsJson = choices ? JSON.stringify(buildNeedleChoiceCatalog(choices)) : defaultToolsJson;
+  const { output } = await send<{ output: string }>({ type: 'plan', input, maxNewTokens: MAX_NEW_TOKENS, toolsJson });
+  const parsed = parseNeedleOutput(output);
+  const { confidence, decodeTokensPerSecond } = parsed;
+  const plan = { ...parsed.plan, calls: translateNeedleCalls(parsed.plan.calls, tasks) };
   return {
     ...plan,
     confidence,

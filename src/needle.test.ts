@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PlannerOutputError } from './agent';
-import { buildNeedleToolCatalog, parseNeedleOutput } from './needle';
+import { buildNeedleChoiceCatalog, buildNeedleToolCatalog, clarificationChoices, parseNeedleOutput, translateNeedleCalls } from './needle';
+import type { Task } from './types';
 import type { ToolDefinition } from './tools';
 
 const output = (fields: Record<string, unknown>) => JSON.stringify({
@@ -8,22 +9,54 @@ const output = (fields: Record<string, unknown>) => JSON.stringify({
 });
 
 describe('Needle 3 adapter', () => {
-  it('declares tools with OpenAI-style parameters', () => {
-    const tools: ToolDefinition[] = [{
-      name: 'add_task', description: 'Add a task',
-      inputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] },
+  it('declares OpenAI-style tools plus a Needle-only record_finished_task', () => {
+    const tools: ToolDefinition[] = ['add_task', 'complete_task'].map((name) => ({
+      name, description: `${name} description`,
+      inputSchema: { type: 'object', properties: {} },
       execute: async () => ({ ok: true })
-    }];
-    expect(buildNeedleToolCatalog(tools)).toEqual([{
-      name: 'add_task', description: 'Add a task',
-      parameters: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
-    }]);
+    }));
+    const catalog = buildNeedleToolCatalog(tools);
+    expect(catalog.map((tool) => tool.name)).toEqual(['add_task', 'record_finished_task', 'complete_task']);
+    expect(catalog[0].description).toMatch(/own words/);
+    expect(catalog[0].parameters).toEqual({ type: 'object', properties: {} });
+  });
+
+  it('limits a clarification answer to the offered open tasks', () => {
+    const tasks: Task[] = ['submit report', 'review report'].map((title, index) => ({ id: `t${index}`, title, priority: 'medium', completed: false, createdAt: '' }));
+    expect(clarificationChoices('Which task should I complete: “submit report” or “review report”?', tasks)).toEqual(['submit report', 'review report']);
+    expect(clarificationChoices('Which report do you mean?', tasks)).toBeUndefined();
+    expect(clarificationChoices('Which task should I complete: “submit report” or “pay rent”?', tasks)).toBeUndefined();
+    expect(buildNeedleChoiceCatalog(['submit report', 'review report'])[0].parameters.properties.task.enum).toEqual(['submit report', 'review report']);
+  });
+
+  it('drops a completion that repeats work recorded as finished', () => {
+    expect(translateNeedleCalls([
+      { name: 'record_finished_task', arguments: { title: 'Sldering iron' } },
+      { name: 'complete_task', arguments: { task: 'packed a sldering iron' } }
+    ], [])).toEqual([
+      { name: 'add_task', arguments: { title: 'Sldering iron' } },
+      { name: 'complete_task', arguments: { task: 'Sldering iron' } }
+    ]);
+  });
+
+  it('translates record_finished_task into the app tools', () => {
+    const tasks: Task[] = [{ id: 'slides', title: 'finish the slides', priority: 'medium', completed: false, createdAt: '' }];
+    expect(translateNeedleCalls([
+      { name: 'record_finished_task', arguments: { title: 'Slides' } },
+      { name: 'record_finished_task', arguments: { title: 'Handouts' } },
+      { name: 'list_tasks', arguments: {} }
+    ], tasks)).toEqual([
+      { name: 'complete_task', arguments: { task: 'slides' } },
+      { name: 'add_task', arguments: { title: 'Handouts' } },
+      { name: 'complete_task', arguments: { task: 'Handouts' } },
+      { name: 'list_tasks', arguments: {} }
+    ]);
   });
 
   it('maps function calls to an action plan', () => {
     const calls = [{ name: 'add_task', arguments: { title: 'Buy milk' } }, { name: 'add_task', arguments: { title: 'Call the dentist' } }];
     const { plan, decodeTokensPerSecond } = parseNeedleOutput(output({ function_calls: calls, confidence: 0.52 }));
-    expect(plan).toEqual({ outcome: 'act', calls, message: 'Needle 3 proposed 2 actions (confidence 0.52).' });
+    expect(plan).toEqual({ outcome: 'act', calls, message: 'Needle 3 proposed a plan (confidence 0.52).' });
     expect(decodeTokensPerSecond).toBe(60);
   });
 

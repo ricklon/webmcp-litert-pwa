@@ -33,6 +33,11 @@ describe('Needle-first routing', () => {
     expect(postNeedleEscalation(act([{ name: 'complete_task', arguments: { task: 'pay rent' } }]), 0.99, tasks, 'Please do this')).toBe('unknown-completion-target');
   });
 
+  it('treats a task added earlier in the plan as a known completion target', () => {
+    const plan = act([{ name: 'add_task', arguments: { title: 'Sldering iron' } }, { name: 'complete_task', arguments: { task: 'Sldering iron' } }]);
+    expect(postNeedleEscalation(plan, 0.75, tasks, 'I packed a sldering iron as well')).toBeNull();
+  });
+
   it('keeps Needle when the guardrails will decide the outcome anyway', () => {
     const typo = act([{ name: 'complete_task', arguments: { task: 'buy cofee filters as complete' } }]);
     expect(postNeedleEscalation(typo, 0.58, tasks, 'Mark "buy cofee filters as complete"')).toBeNull();

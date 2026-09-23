@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { AGENT_SYSTEM_PROMPT, authorizeToolPlan, enforceExplicitBulkCompletion, enforceSafetyGuardrails, getChromeModelAvailability, loadBonsai, loadChromeModel, loadLiteRt, MODEL_E4B_URL, MODEL_URL, PlannerOutputError, planDeterministically, planWithBonsai, planWithChrome, planWithLiteRt, unloadBonsai, unloadChromeModel, unloadLiteRt } from './agent';
 import { appendMemoryEvent, clearMemory, createMemoryConversation, loadMemory, saveConversationSession, selectMemoryConversation } from './memory';
 import { postNeedleEscalation, preNeedleEscalation } from './hybrid';
-import { loadNeedle, planWithNeedle, unloadNeedle } from './needle';
+import { clarificationChoices, loadNeedle, planWithNeedle, unloadNeedle } from './needle';
 import { createTools, executeLocalTool } from './tools';
 import type { Activity, AgentPlan, Conversation, PendingClarification, PlannerMetrics, PlannerTraceEntry, PlanReview, Task } from './types';
 import { registerWebMcpTools, type WebMcpStatus } from './webmcp';
@@ -516,11 +516,15 @@ export default function App() {
           : request;
     // Needle only extracts calls from plain request text, so follow-ups are
     // folded into one sentence instead of the structured planning prompt.
-    const needleInput = currentClarification
-      ? `${currentClarification.request}: ${request}`
-      : refiningProposal
-        ? `${planReview.originalRequest}. ${request}`
-        : request;
+    // When the pending question offers specific tasks, Needle only chooses among them.
+    const needleChoices = currentClarification ? clarificationChoices(currentClarification.question, tasksRef.current) : undefined;
+    const needleInput = needleChoices
+      ? request
+      : currentClarification
+        ? `${currentClarification.request}: ${request}`
+        : refiningProposal
+          ? `${planReview.originalRequest}. ${request}`
+          : request;
     setPlannerMetrics(null);
     setFeedback({ tone: 'working', title: `${planner === 'chrome' ? 'Chrome’s model' : planner === 'litert' ? 'LiteRT-LM' : planner === 'bonsai' ? 'Bonsai 27B' : planner === 'needle' ? 'Needle 3' : 'Demo rules'} is planning`, detail: `Reading: “${request}”` });
     let tracePlan: AgentPlan | null = null;
@@ -558,16 +562,16 @@ export default function App() {
           : model === 'bonsai'
             ? planWithBonsai(planningRequest, tools, planningTasks, conversationHistory)
           : model === 'needle'
-            ? planWithNeedle(needleInput)
+            ? planWithNeedle(needleInput, tasksRef.current, needleChoices)
           : Promise.resolve(planDeterministically(planningRequest, planningTasks));
       let proposedPlan: AgentPlan;
       if (needleFirstActive && largePlanner) {
-        const isFollowUp = Boolean(currentClarification) || refiningProposal || refiningCompleted;
+        const isFollowUp = (Boolean(currentClarification) && !needleChoices) || refiningProposal || refiningCompleted;
         let escalation: string | null = preNeedleEscalation(request, isFollowUp);
         let needlePlan: Awaited<ReturnType<typeof planWithNeedle>> | null = null;
         if (!escalation) {
           try {
-            needlePlan = await planWithNeedle(request);
+            needlePlan = await planWithNeedle(request, tasksRef.current, needleChoices);
             escalation = postNeedleEscalation(needlePlan, needlePlan.confidence, tasksRef.current, request);
           } catch (error) {
             console.warn('Needle 3 failed; using the loaded model', error);
