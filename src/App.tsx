@@ -123,6 +123,20 @@ export default function App() {
   }, [tasks]);
 
   useEffect(() => {
+    // Another tab or the installed app changed the shared task list. Adopt it
+    // so this tab's next write builds on it instead of overwriting it.
+    // A key of null means that tab cleared all storage.
+    const syncTasks = (event: StorageEvent) => {
+      if (event.storageArea !== localStorage || (event.key !== TASK_KEY && event.key !== null)) return;
+      const next = readTasks();
+      tasksRef.current = next;
+      setTasks(next);
+    };
+    window.addEventListener('storage', syncTasks);
+    return () => window.removeEventListener('storage', syncTasks);
+  }, []);
+
+  useEffect(() => {
     // A managed result describes one exact task snapshot. Any later task edit
     // invalidates that result, including edits made through WebMCP.
     if ((scenarioState === 'passed' || scenarioState === 'failed')
