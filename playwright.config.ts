@@ -1,6 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const nativeWebMcp = process.env.RUN_NATIVE_WEBMCP === '1';
+// Chrome on Linux keeps WebGPU behind flags; opt in to benchmark WebGPU models there.
+const linuxWebGpu = process.env.ENABLE_LINUX_WEBGPU === '1';
+// Chrome honors only the last --enable-features flag, so features are merged.
+const enabledFeatures = [...(nativeWebMcp ? ['WebMCP'] : []), ...(linuxWebGpu ? ['Vulkan'] : [])];
+const chromeArgs = [
+  ...(enabledFeatures.length ? [`--enable-features=${enabledFeatures.join(',')}`] : []),
+  ...(nativeWebMcp ? ['--enable-blink-features=WebMCPTesting'] : []),
+  ...(linuxWebGpu ? ['--enable-unsafe-webgpu', '--use-angle=vulkan'] : [])
+];
 
 export default defineConfig({
   testDir: './tests',
@@ -17,9 +26,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         channel: 'chrome',
-        launchOptions: nativeWebMcp ? {
-          args: ['--enable-features=WebMCP', '--enable-blink-features=WebMCPTesting']
-        } : undefined
+        launchOptions: chromeArgs.length ? { args: chromeArgs } : undefined
       }
     }
   ],

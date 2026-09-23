@@ -1,6 +1,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AGENT_SYSTEM_PROMPT, authorizeToolPlan, enforceExplicitBulkCompletion, enforceSafetyGuardrails, getChromeModelAvailability, loadBonsai, loadChromeModel, loadLiteRt, MODEL_E4B_URL, MODEL_URL, PlannerOutputError, planDeterministically, planWithBonsai, planWithChrome, planWithLiteRt, unloadBonsai, unloadChromeModel, unloadLiteRt } from './agent';
 import { appendMemoryEvent, clearMemory, createMemoryConversation, loadMemory, saveConversationSession, selectMemoryConversation } from './memory';
+import { postNeedleEscalation, preNeedleEscalation } from './hybrid';
+import { loadNeedle, planWithNeedle, unloadNeedle } from './needle';
 import { createTools, executeLocalTool } from './tools';
 import type { Activity, AgentPlan, Conversation, PendingClarification, PlannerMetrics, PlannerTraceEntry, PlanReview, Task } from './types';
 import { registerWebMcpTools, type WebMcpStatus } from './webmcp';
@@ -30,6 +32,7 @@ function formatPlannerActivity(metrics: PlannerMetrics) {
   }
   if (metrics.estimatedOutputTokens !== undefined) parts.push(`output ~${Math.round(metrics.estimatedOutputTokens)} tokens`);
   if (metrics.estimatedTokensPerSecond !== undefined) parts.push(`~${metrics.estimatedTokensPerSecond.toFixed(1)} tok/s`);
+  if (metrics.plannedBy) parts.push(`planned by ${metrics.plannedBy}`);
   return parts.join(' · ');
 }
 
@@ -62,8 +65,14 @@ export default function App() {
   const conversationIdRef = useRef('');
   const [memoryReady, setMemoryReady] = useState(false);
   const [webMcp, setWebMcp] = useState<WebMcpStatus>('available');
-  const [planner, setPlanner] = useState<'demo' | 'chrome' | 'litert' | 'bonsai'>('demo');
-  const [loadingPlanner, setLoadingPlanner] = useState<'chrome' | 'litert' | 'bonsai' | null>(null);
+  const [planner, setPlanner] = useState<PlannerTraceEntry['planner']>('demo');
+  const [loadingPlanner, setLoadingPlanner] = useState<Exclude<PlannerTraceEntry['planner'], 'demo'> | null>(null);
+  // Needle-first routing: Needle 3 handles simple requests and hands the rest
+  // to whichever larger model is loaded.
+  const [needleFirst, setNeedleFirst] = useState<'off' | 'loading' | 'on'>('off');
+  const largePlanner = planner === 'chrome' || planner === 'litert' || planner === 'bonsai' ? planner : null;
+  const needleFirstActive = needleFirst === 'on' && largePlanner !== null;
+  const largePlannerName = largePlanner === 'chrome' ? 'Gemini Nano' : largePlanner === 'litert' ? liteRtModelName : 'Bonsai 27B';
   const runtimeRequestRef = useRef(0);
   const runtimeActivationBusyRef = useRef(false);
   const [chromeAvailability, setChromeAvailability] = useState<'checking' | 'unavailable' | 'downloadable' | 'downloading' | 'available'>('checking');
@@ -280,6 +289,7 @@ export default function App() {
       await unloadLiteRt();
       unloadChromeModel();
       unloadBonsai();
+      if (needleFirst !== 'on') unloadNeedle();
       setPlanner('demo');
       await loadLiteRt(variant === 'e4b' ? MODEL_E4B_URL : MODEL_URL, setEngineNote);
       if (requestId !== runtimeRequestRef.current) return;
@@ -310,6 +320,7 @@ export default function App() {
     try {
       await unloadLiteRt();
       unloadChromeModel();
+      if (needleFirst !== 'on') unloadNeedle();
       await loadBonsai(setEngineNote);
       if (requestId !== runtimeRequestRef.current) return;
       setPlanner('bonsai');
@@ -330,6 +341,65 @@ export default function App() {
     }
   }
 
+  async function activateNeedle() {
+    if (runtimeActivationBusyRef.current) return;
+    runtimeActivationBusyRef.current = true;
+    setNeedleFirst('off');
+    const requestId = ++runtimeRequestRef.current;
+    setLoadingPlanner('needle');
+    setFeedback({ tone: 'working', title: 'Preparing Needle 3', detail: 'Downloading the ~35 MB tool-calling model and starting its WebAssembly engine.' });
+    try {
+      await unloadLiteRt();
+      unloadChromeModel();
+      unloadBonsai();
+      setPlanner('demo');
+      await loadNeedle(tools, setEngineNote);
+      if (requestId !== runtimeRequestRef.current) return;
+      setPlanner('needle');
+      setPendingClarificationNow(null);
+      setPlanReview(null);
+      setRefiningExecutedPlan(false);
+      setEngineNote('Needle 3 · 35 MB · WebAssembly · on device');
+      log('Needle 3 is ready.', 'local agent');
+      setFeedback({ tone: 'success', title: 'Needle 3 is ready', detail: 'Your next request will use Needle 3 locally. It maps requests to task tools but does not see the current task list.' });
+    } catch (error) {
+      unloadNeedle();
+      if (requestId !== runtimeRequestRef.current) return;
+      setEngineNote(error instanceof Error ? error.message : 'Needle 3 failed to load.');
+      setFeedback({ tone: 'error', title: 'Needle 3 could not start', detail: error instanceof Error ? error.message : 'Model failed to load.' });
+    } finally {
+      runtimeActivationBusyRef.current = false;
+      setLoadingPlanner(null);
+    }
+  }
+
+  async function toggleNeedleFirst(enabled: boolean) {
+    if (runtimeActivationBusyRef.current) return;
+    if (!enabled) {
+      unloadNeedle();
+      setNeedleFirst('off');
+      log('Needle-first routing turned off.', 'local agent');
+      setFeedback({ tone: 'success', title: 'Needle first is off', detail: 'Every request now goes straight to the loaded model.' });
+      return;
+    }
+    runtimeActivationBusyRef.current = true;
+    setNeedleFirst('loading');
+    setFeedback({ tone: 'working', title: 'Preparing Needle 3', detail: 'Downloading the ~35 MB tool-calling model to route simple requests.' });
+    try {
+      await loadNeedle(tools, setEngineNote);
+      setNeedleFirst('on');
+      setEngineNote('Needle 3 first, then the loaded model · on device');
+      log('Needle-first routing is on.', 'local agent');
+      setFeedback({ tone: 'success', title: 'Needle first is on', detail: 'Short, direct requests use Needle 3. Follow-ups, long or uncertain requests, and unknown completion targets go to the loaded model.' });
+    } catch (error) {
+      unloadNeedle();
+      setNeedleFirst('off');
+      setFeedback({ tone: 'error', title: 'Needle 3 could not start', detail: error instanceof Error ? error.message : 'Model failed to load.' });
+    } finally {
+      runtimeActivationBusyRef.current = false;
+    }
+  }
+
   async function activateChromeModel() {
     if (runtimeActivationBusyRef.current) return;
     runtimeActivationBusyRef.current = true;
@@ -339,6 +409,7 @@ export default function App() {
     try {
       await unloadLiteRt();
       unloadBonsai();
+      if (needleFirst !== 'on') unloadNeedle();
       await loadChromeModel(setEngineNote);
       if (requestId !== runtimeRequestRef.current) return;
       setPlanner('chrome');
@@ -365,6 +436,8 @@ export default function App() {
     await unloadLiteRt();
     unloadBonsai();
     unloadChromeModel();
+    unloadNeedle();
+    setNeedleFirst('off');
     setPlanner('demo');
     setPendingClarificationNow(null);
     setPlanReview(null);
@@ -441,12 +514,20 @@ export default function App() {
         : refiningCompleted
           ? `Original request: ${planReview.originalRequest}\nAlready executed calls: ${JSON.stringify(planReview.plan.calls)}\nUser refinement after execution: ${request}\nReturn only additional or corrective calls. Do not repeat completed work.`
           : request;
+    // Needle only extracts calls from plain request text, so follow-ups are
+    // folded into one sentence instead of the structured planning prompt.
+    const needleInput = currentClarification
+      ? `${currentClarification.request}: ${request}`
+      : refiningProposal
+        ? `${planReview.originalRequest}. ${request}`
+        : request;
     setPlannerMetrics(null);
-    setFeedback({ tone: 'working', title: `${planner === 'chrome' ? 'Chrome’s model' : planner === 'litert' ? 'LiteRT-LM' : planner === 'bonsai' ? 'Bonsai 27B' : 'Demo rules'} is planning`, detail: `Reading: “${request}”` });
+    setFeedback({ tone: 'working', title: `${planner === 'chrome' ? 'Chrome’s model' : planner === 'litert' ? 'LiteRT-LM' : planner === 'bonsai' ? 'Bonsai 27B' : planner === 'needle' ? 'Needle 3' : 'Demo rules'} is planning`, detail: `Reading: “${request}”` });
     let tracePlan: AgentPlan | null = null;
     let traceModelPlan: AgentPlan | null = null;
     let traceGuardrails: string[] = [];
     let traceRawOutput: string | undefined;
+    let traceRoute: PlannerTraceEntry['route'];
     const recordTrace = (status: PlannerTraceEntry['status'], message: string) => {
       const entry: PlannerTraceEntry = {
         request,
@@ -461,7 +542,8 @@ export default function App() {
         outputDiagnostics: tracePlan?.outputDiagnostics,
         modelOutcome: traceModelPlan?.outcome,
         modelCalls: traceModelPlan?.calls,
-        guardrailInterventions: traceGuardrails
+        guardrailInterventions: traceGuardrails,
+        route: traceRoute
       };
       scenarioTraceRef.current = [...scenarioTraceRef.current, entry];
       setScenarioTrace(scenarioTraceRef.current);
@@ -469,13 +551,43 @@ export default function App() {
     try {
       const startedAt = performance.now();
       const planningTasks = options.includeTasks === false ? [] : tasksRef.current;
-      const proposedPlan = planner === 'chrome'
-        ? await planWithChrome(planningRequest, tools, planningTasks, conversationHistory)
-        : planner === 'litert'
-          ? await planWithLiteRt(planningRequest, tools, planningTasks, conversationHistory)
-          : planner === 'bonsai'
-            ? await planWithBonsai(planningRequest, tools, planningTasks, conversationHistory)
-          : planDeterministically(planningRequest, planningTasks);
+      const planWithModel = (model: PlannerTraceEntry['planner']) => model === 'chrome'
+        ? planWithChrome(planningRequest, tools, planningTasks, conversationHistory)
+        : model === 'litert'
+          ? planWithLiteRt(planningRequest, tools, planningTasks, conversationHistory)
+          : model === 'bonsai'
+            ? planWithBonsai(planningRequest, tools, planningTasks, conversationHistory)
+          : model === 'needle'
+            ? planWithNeedle(needleInput)
+          : Promise.resolve(planDeterministically(planningRequest, planningTasks));
+      let proposedPlan: AgentPlan;
+      if (needleFirstActive && largePlanner) {
+        const isFollowUp = Boolean(currentClarification) || refiningProposal || refiningCompleted;
+        let escalation: string | null = preNeedleEscalation(request, isFollowUp);
+        let needlePlan: Awaited<ReturnType<typeof planWithNeedle>> | null = null;
+        if (!escalation) {
+          try {
+            needlePlan = await planWithNeedle(request);
+            escalation = postNeedleEscalation(needlePlan, needlePlan.confidence, tasksRef.current, request);
+          } catch (error) {
+            console.warn('Needle 3 failed; using the loaded model', error);
+            escalation = 'needle-error';
+          }
+        }
+        // Record the routing decision first so a failing larger model still shows it.
+        traceRoute = { decidedBy: escalation ? largePlanner : 'needle', escalation, needleCalls: needlePlan?.calls };
+        const chosen = escalation || !needlePlan ? await planWithModel(largePlanner) : needlePlan;
+        proposedPlan = {
+          ...chosen,
+          metrics: {
+            ...chosen.metrics,
+            elapsedMs: performance.now() - startedAt,
+            plannedBy: escalation ? `${largePlannerName} (Needle escalated: ${escalation})` : 'Needle 3'
+          }
+        };
+      } else {
+        proposedPlan = await planWithModel(planner);
+      }
       const metrics = proposedPlan.metrics ?? { elapsedMs: performance.now() - startedAt };
       traceModelPlan = proposedPlan;
       tracePlan = proposedPlan;
@@ -585,7 +697,7 @@ export default function App() {
     if (scenarioState !== 'loaded' && scenarioState !== 'failed' && scenarioState !== 'passed') return;
     setBusy(true);
     setScenarioState('running');
-    setScenarioResult(`Running with ${planner === 'chrome' ? 'Chrome built-in AI' : planner === 'litert' ? 'LiteRT-LM' : planner === 'bonsai' ? 'Bonsai 27B' : 'demo rules'}…`);
+    setScenarioResult(`Running with ${planner === 'chrome' ? 'Chrome built-in AI' : planner === 'litert' ? 'LiteRT-LM' : planner === 'bonsai' ? 'Bonsai 27B' : planner === 'needle' ? 'Needle 3' : 'demo rules'}…`);
     let workflowFailure = '';
     for (let index = 0; index < activeScenario.requests.length; index += 1) {
       setScenarioStep(index + 1);
@@ -703,7 +815,7 @@ export default function App() {
         <h1>A tiny agent that can<br /><em>actually use the page.</em></h1>
         <p className="lede">Plan your day in natural language. Review and refine the model’s proposal before any write reaches the page.</p>
         <div className="architecture" aria-label="Application architecture">
-          <span>You</span><b>→</b><span className={planner !== 'demo' ? 'active' : ''}>{planner === 'chrome' ? 'Chrome model' : planner === 'litert' ? 'LiteRT model' : planner === 'bonsai' ? 'Bonsai 27B' : 'Demo rules'}</span><b>→</b><span className={planReview?.status === 'proposed' ? 'active' : ''}>Review</span><b>→</b><span className={webMcp === 'registered' ? 'active' : ''}>Page tools</span><b>→</b><span>Tasks</span>
+          <span>You</span><b>→</b><span className={planner !== 'demo' ? 'active' : ''}>{planner === 'chrome' ? 'Chrome model' : planner === 'litert' ? 'LiteRT model' : planner === 'bonsai' ? 'Bonsai 27B' : planner === 'needle' ? 'Needle 3' : 'Demo rules'}</span><b>→</b><span className={planReview?.status === 'proposed' ? 'active' : ''}>Review</span><b>→</b><span className={webMcp === 'registered' ? 'active' : ''}>Page tools</span><b>→</b><span>Tasks</span>
         </div>
       </section>
 
@@ -730,7 +842,7 @@ export default function App() {
         <div className="agent-panel">
           <div className="section-heading">
             <div><p className="kicker">01 / Ask</p><h2>Local agent</h2></div>
-            <span className="state state-ready">{planner}</span>
+            <span className="state state-ready">{planner}{needleFirstActive ? '+needle' : ''}</span>
           </div>
           <div className="conversation-controls">
             <label><span>Conversation</span><select aria-label="Conversation" value={conversationId} onChange={(event) => switchConversation(event.target.value)} disabled={!memoryReady || busy}>
@@ -757,7 +869,7 @@ export default function App() {
                 ? 'Describe what the agent should change…'
                 : 'Add submit the expense report as high priority…'} rows={4} />
             <div className="prompt-footer">
-              <span>{busy ? 'Planning…' : `Enter to submit · Shift+Enter for a new line · ${planner === 'chrome' ? 'Chrome AI' : planner === 'litert' ? 'LiteRT-LM' : planner === 'bonsai' ? 'Bonsai 27B' : 'Demo rules'}`}</span>
+              <span>{busy ? 'Planning…' : `Enter to submit · Shift+Enter for a new line · ${planner === 'chrome' ? 'Chrome AI' : planner === 'litert' ? 'LiteRT-LM' : planner === 'bonsai' ? 'Bonsai 27B' : planner === 'needle' ? 'Needle 3' : 'Demo rules'}`}</span>
               <button type="submit" disabled={!memoryReady || busy || !prompt.trim()}>{pendingClarification ? 'Answer' : planReview?.status === 'proposed' || refiningExecutedPlan ? 'Refine' : 'Plan'} <span>↗</span></button>
             </div>
           </form>
@@ -841,6 +953,9 @@ export default function App() {
           <button className={`runtime-card ${planner === 'bonsai' ? 'selected' : ''}`} onClick={activateBonsai} disabled={busy || loadingPlanner !== null} aria-pressed={planner === 'bonsai'}>
             <span className="runtime-icon lime">🌳</span><span><b>Bonsai custom</b><small>27B · 1-bit GGUF · WebGPU</small></span><i>{loadingPlanner === 'bonsai' ? 'Loading' : 'Load'}</i>
           </button>
+          <button className={`runtime-card ${planner === 'needle' ? 'selected' : ''}`} onClick={activateNeedle} disabled={busy || loadingPlanner !== null} aria-pressed={planner === 'needle'}>
+            <span className="runtime-icon lime">⌁</span><span><b>Needle 3 tiny</b><small>35 MB · tool calls only · WebAssembly</small></span><i>{loadingPlanner === 'needle' ? 'Loading' : 'Load'}</i>
+          </button>
           <button className={`runtime-card ${planner === 'demo' ? 'selected' : ''}`} onClick={useDemoMode} disabled={busy || loadingPlanner !== null} aria-pressed={planner === 'demo'}>
             <span className="runtime-icon">⚡</span><span><b>Demo rules</b><small>Universal fallback · zero download</small></span><i>Use</i>
           </button>
@@ -849,6 +964,11 @@ export default function App() {
             setPrompt('Add buy coffee filters');
             document.getElementById('agent-prompt')?.focus();
           }}>Try a demo request →</button>}
+          <label className="needle-first">
+            <input type="checkbox" checked={needleFirst !== 'off'} onChange={(event) => toggleNeedleFirst(event.target.checked)}
+              disabled={busy || loadingPlanner !== null || needleFirst === 'loading' || (!largePlanner && needleFirst === 'off')} />
+            <span><b>Needle first</b><small>{needleFirst === 'loading' ? 'Loading Needle 3…' : largePlanner ? `Needle 3 handles short, direct requests; the rest go to ${largePlannerName}.` : 'Load Chrome’s model, Gemma, or Bonsai to pair it with Needle 3.'}</small></span>
+          </label>
           <p className="download-warning">Custom models are fetched from Hugging Face only after confirmation. E4B is recommended for reliability; E2B is lighter and faster. Bonsai is ~3.8 GB and works best with at least 16 GB of GPU memory.</p>
           <details className="prompt-details"><summary>View agent system prompt</summary><code>{AGENT_SYSTEM_PROMPT}</code></details>
         </aside>

@@ -14,6 +14,8 @@ export type PlannerMetrics = {
   contextWindow?: number;
   estimatedOutputTokens?: number;
   estimatedTokensPerSecond?: number;
+  /** Set when Needle-first routing chose which model produced the plan. */
+  plannedBy?: string;
 };
 
 export type PlannerOutputDiagnostics = {
@@ -36,7 +38,7 @@ export type AgentPlan = {
 export type PlannerTraceEntry = {
   request: string;
   originalRequest: string;
-  planner: 'demo' | 'chrome' | 'litert' | 'bonsai';
+  planner: 'demo' | 'chrome' | 'litert' | 'bonsai' | 'needle';
   outcome: AgentPlan['outcome'] | 'error';
   calls: ToolCall[];
   message: string;
@@ -47,6 +49,8 @@ export type PlannerTraceEntry = {
   modelOutcome?: AgentPlan['outcome'];
   modelCalls?: ToolCall[];
   guardrailInterventions?: string[];
+  /** Needle-first routing: which model decided, and why Needle was bypassed. */
+  route?: { decidedBy: 'needle' | 'chrome' | 'litert' | 'bonsai'; escalation: string | null; needleCalls?: ToolCall[] };
 };
 
 export type Activity = {

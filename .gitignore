@@ -7,6 +7,8 @@ benchmark-results/*
 !benchmark-results/baseline-v2-3run.json
 !benchmark-results/litert-e4b-focused-3run.json
 !benchmark-results/bonsai-thinking-focused-3run.json
+!benchmark-results/needle-3run.json
+!benchmark-results/needle-first-routing-1run.json
 .playwright/
 *.tsbuildinfo
 vite.config.js

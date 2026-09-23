@@ -75,6 +75,12 @@ h2 sup { color: #ff6b4a; font: 500 11px DM Mono, monospace; vertical-align: top;
 .runtime-note { margin: 18px 0 8px; font-family: DM Mono, monospace; color: #161814; }
 .try-demo { padding: 0; border: 0; border-bottom: 1px solid #161814; background: transparent; font: 500 10px DM Mono, monospace; }
 .download-warning { line-height: 1.6; }
+.needle-first { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; border: 1px dashed #bbb8af; padding: 11px 13px; margin-bottom: 10px; cursor: pointer; }
+.needle-first:has(input:disabled) { opacity: .6; cursor: default; }
+.needle-first input { margin: 2px 0 0; accent-color: #161814; }
+.needle-first span { display: flex; flex-direction: column; }
+.needle-first b { font-size: 13px; }
+.needle-first small { color: #777a70; font-size: 10px; line-height: 1.5; }
 .prompt-details { margin-top: 18px; border-top: 1px solid #bbb8af; padding-top: 14px; }.prompt-details summary { cursor: pointer; font: 500 9px DM Mono, monospace; text-transform: uppercase; letter-spacing: .07em; }.prompt-details code { display: block; margin-top: 10px; padding: 10px; background: #f8f6ef; white-space: normal; font: 10px/1.55 DM Mono, monospace; }
 .lower-grid { margin-top: 24px; grid-template-columns: 1.25fr .75fr; }
 .empty { min-height: 220px; display: grid; place-content: center; text-align: center; border: 1px dashed #b7b4aa; }

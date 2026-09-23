@@ -166,3 +166,76 @@ are acceptable, backed by deterministic mutation guardrails. E2B remains the
 fastest custom runtime but depends heavily on output recovery. Bonsai remains
 the safest raw tool selector, but its latency and over-clarification make it a
 poor default for interactive task planning.
+
+## Needle 3 (September 23, 2026)
+
+[Needle 3](https://huggingface.co/Cactus-Compute/needle3) is a 121M-parameter,
+35 MB tool-calling model that runs on the CPU through WebAssembly in a Web
+Worker. It receives only the request text and the tool catalog: it does not see
+current tasks or conversation history, cannot ask a clarifying question, and
+answers by returning no calls. Clarification answers are folded into one
+sentence (`<original request>: <answer>`).
+
+The run used the same twelve cases three times in headless Chrome 153 on an
+Intel Core i7-10610U laptop CPU. Report:
+`benchmark-results/needle-3run.json`.
+
+| Runtime | Strict scenarios | Exact decisions | Raw exact decisions | Safe tool steps | Clarification | Median | p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Needle 3 + guardrails | 24/36 | 80% (36/45) | 67% (30/45) | 93% (42/45) | 6/6, 9 asked | 1.39 s | 3.42 s |
+
+Activation took 6.2 s including the first 35 MB download; median planner time
+was 1.10 s. Every run produced the same decisions, so the four failing cases
+fail deterministically:
+
+- **Ambiguous completion follow-up:** the guardrail correctly asks which report
+  to complete, but Needle reduces “Complete the report: submit report” to
+  `report`, so the follow-up stays ambiguous.
+- **Newly finished work:** “I packed a sldering iron as well” becomes
+  `complete_task` for a task that does not exist, instead of add-then-complete.
+- **Six-way event-trip decomposition:** the long, typo-filled story becomes a
+  single `list_tasks` call.
+- **Priority mapping:** it maps “urgent” to `high` correctly but shortens the
+  title to “Dentist appointment”, dropping the requested “book”.
+
+Needle's raw output was valid JSON for every step, and it never asked a
+question. All six correct clarifications, the declined email request, and the
+absent-target answer come from the application guardrails (15 interventions),
+which is why its raw exact-decision rate is 67% while its guarded rate is 80%.
+
+These numbers come from different hardware and a later app version than the
+three-run baseline above, so compare latency only loosely. By raw exact
+decisions, Needle (67%) matches LiteRT E2B (67%) and trails Bonsai (73%) with a
+35 MB download instead of E2B's ~2 GB and no WebGPU requirement. It is a good fit for
+short, direct commands; requests that depend on the current task list or on
+multi-step inference still need a larger planner.
+
+## Needle-first routing (September 23, 2026)
+
+Needle-first routing pairs Needle 3 with the loaded larger model. Needle plans
+every request unless it is a follow-up (clarification answer or refinement) or
+longer than 25 words. Its plan is then escalated to the larger model if it has
+no calls, confidence below 0.7, or a completion target that matches no open
+task, unless the deterministic guardrails will decide that request anyway.
+
+A one-run pass of the twelve cases paired Needle with LiteRT Gemma 4 E2B on
+the same Intel Core i7-10610U laptop, using its UHD Graphics (Gen9) GPU
+through Chrome 153's Vulkan WebGPU backend. Report:
+`benchmark-results/needle-first-routing-1run.json`.
+
+| Decided by | Steps | Result |
+| --- | ---: | --- |
+| Needle 3 | 12/15 | 11 correct; only the dentist title was shortened. Median about 1.1 s per decision. |
+| Larger model | 3/15 | The ambiguous-completion follow-up, the newly-finished-work statement, and the six-item trip story: exactly Needle's standalone failures. |
+
+An earlier routing rule without the guardrail exception escalated seven
+steps, including the typo, unsupported-email, missing-target, and
+underspecified requests. The guardrails replace the model's plan for those
+requests regardless of which model planned, so escalating them only added
+about 20 s each.
+
+The larger-model half is **not** measured here: Gemma produced corrupted
+output on this Intel Gen9 GPU (Mesa 25.2.8), both with and without Needle, so
+all three escalated steps failed. An end-to-end hybrid score needs a machine
+where the larger model works, such as the Chrome-capable profile used for the
+baselines above (`BENCHMARK_MODELS=chrome,chrome+needle`).

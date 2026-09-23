@@ -4,7 +4,7 @@ Live demo: <https://ricklon.github.io/webmcp-litert-pwa/>
 
 A Vite/React PWA that tests how Chrome's built-in model, custom WebGPU models, and WebMCP page tools can work together. The useful demo is a private task planner:
 
-1. Natural language is planned by Chrome's built-in Gemini Nano when available, with Gemma 4 E4B recommended through LiteRT-LM, lighter/faster E2B, and 1-bit Bonsai 27B through `bitgpu` as optional custom local models.
+1. Natural language is planned by Chrome's built-in Gemini Nano when available, with Gemma 4 E4B recommended through LiteRT-LM, lighter/faster E2B, 1-bit Bonsai 27B through `bitgpu`, and the 35 MB Needle 3 tool-calling model through WebAssembly as optional custom local models.
 2. Read-only plans can run immediately; write plans become editable proposals and call tools only after user approval.
 3. Task data, conversation memory, proposals, and the audit log remain in the browser.
 4. A deterministic demo planner remains the universal fallback when neither model API is available.
@@ -20,6 +20,10 @@ Native WebMCP reads execute immediately. Native WebMCP writes enter the same edi
 Every model request receives a fresh runtime clock containing local date/time, the browser's IANA timezone, and a UTC timestamp. This keeps relative language such as “today” and “tomorrow” grounded even when a model session remains open for a long time. Tasks do not yet have a structured due-date field, so relevant timing is preserved in titles for now.
 
 Planning also uses a clean per-request model context: Chrome clones its system-prefaced base session (or creates a fresh compatible session as a fallback), LiteRT-LM creates a fresh conversation from the loaded engine, and Bonsai resets its chat cache before each plan. The app supplies proposal and refinement history explicitly, avoiding duplicated hidden conversation context. Chrome's transient `kErrorUnknown` is retried once in a fresh session; a repeated failure leaves the proposal and user refinement recoverable.
+
+Needle 3 support runs the vendored, unmodified Needle WebAssembly engine (`src/vendor/needle`) in a Web Worker and downloads the 35 MB `needle3.cact` weights from a pinned Hugging Face revision. The weights are checked against a pinned SHA-256 and kept in the browser's Cache Storage. It needs no WebGPU. Needle receives only the request text, never the current tasks or conversation, and cannot ask questions, so the app's deterministic guardrails handle ambiguous, missing, and unsupported requests.
+
+**Needle first** pairs Needle 3 with whichever larger model is loaded (Chrome's Gemini Nano, Gemma, or Bonsai). Needle plans short, direct requests in about a second. The app hands a request to the larger model instead when it is a clarification answer or proposal refinement, longer than 25 words, planned with confidence below 0.7, planned with no calls, or completes a task that does not exist. Requests that the deterministic guardrails will decide anyway stay with Needle. Each trace records which model decided and why Needle was bypassed.
 
 Bonsai support uses the public `Bonsai-27B-Q1_0.gguf` through `bitgpu`, with a 4,096-token q8 KV cache and schema-constrained JSON planning. Loading is always opt-in because the weights are approximately 3.8 GB; a GPU with at least 16 GB of available memory is recommended. The current adapter uses the text trunk only and does not expose Bonsai's vision path.
 
@@ -79,6 +83,14 @@ For a shorter diagnostic run:
 ```bash
 BENCHMARK_MODELS=litert BENCHMARK_RUNS=1 BENCHMARK_SCENARIOS=typo-completion,ambiguous-completion npm run benchmark:models
 ```
+
+Benchmark only Needle 3, which runs headless and needs no WebGPU:
+
+```bash
+npm run benchmark:needle
+```
+
+Benchmark a larger model with Needle-first routing by adding `+needle` to its name, for example `BENCHMARK_MODELS=chrome,chrome+needle`. The report adds how many steps Needle decided and why the rest were escalated. On Linux, set `ENABLE_LINUX_WEBGPU=1` so Playwright's Chrome can use the GPU for LiteRT-LM and Bonsai.
 
 Focused model variants are explicit benchmark modes:
 
@@ -147,7 +159,7 @@ Keep native WebMCP tests Chromium-only and feature-detect `document.modelContext
 
 ## What is real versus simulated
 
-- **Real:** Chrome `LanguageModel`, structured output, LiteRT-LM `Engine.create()`, the web-compatible `.litertlm` Gemma model, `bitgpu` with the 1-bit Bonsai 27B GGUF, WebGPU inference, WebMCP `document.modelContext.registerTool()`, local persistence, and the PWA service worker.
+- **Real:** Chrome `LanguageModel`, structured output, LiteRT-LM `Engine.create()`, the web-compatible `.litertlm` Gemma model, `bitgpu` with the 1-bit Bonsai 27B GGUF, WebGPU inference, the Needle 3 WebAssembly engine and weights, WebMCP `document.modelContext.registerTool()`, local persistence, and the PWA service worker.
 - **Fallback:** Demo mode uses small deterministic rules to produce the same structured calls. It does not claim to be model inference.
 - **Bridge:** LiteRT-LM currently provides text generation in its Web API. This prototype asks for the planning envelope, preserves the raw response, applies narrowly bounded syntax and outcome-alias recovery, validates it against the allow-listed tool contracts, and retries validation once before failing closed. Raw and recovered validity are reported separately. WebMCP exposes the same contracts to external browser agents, with write calls wrapped by the page's approval gateway.
 
@@ -165,6 +177,7 @@ Keep native WebMCP tests Chromium-only and feature-detect `document.modelContext
 | --- | --- | --- |
 | LiteRT-LM Web | [Hugging Face models tagged `litert-lm`](https://huggingface.co/models?other=litert-lm) and the [official JavaScript support list](https://github.com/google-ai-edge/LiteRT-LM/tree/main/js/packages/core) | The current JavaScript API explicitly supports the Gemma 4 E2B and E4B `*-web.litertlm` files. A generic `.litertlm` listing is not enough; confirm it appears in the JS support list. |
 | `bitgpu` WebGPU | [PrismML Bonsai 1-bit collection](https://huggingface.co/collections/prism-ml/bonsai) and [Bonsai 27B collection](https://huggingface.co/collections/prism-ml/bonsai-27b) | PrismML-style 1-bit `Q1_0` GGUF models in bitgpu's supported Qwen3 envelope, plus its explicit Qwen3.5 hybrid Bonsai-27B path. The 27B tokenizer files come from the matching unpacked repository. |
+| Needle WebAssembly | [Cactus-Compute/needle3](https://huggingface.co/Cactus-Compute/needle3) | Needle 3 `.cact` weights matching the vendored engine version. |
 | Chrome built-in | Chrome's Prompt API | Browser-managed only; users cannot substitute a Hugging Face model. |
 
 Do not advertise arbitrary GGUF, MLX, safetensors, ONNX, or every model carrying the broad `litert-lm` tag as drop-in compatible. Each custom model still needs an entry in the app describing its model URL, tokenizer source when required, context limit, expected download size, and runtime-specific settings.
@@ -175,6 +188,7 @@ Do not advertise arbitrary GGUF, MLX, safetensors, ONNX, or every model carrying
 - [Bonsai 27B WebGPU Space](https://huggingface.co/spaces/webml-community/bonsai-webgpu-kernels)
 - [`bitgpu` WebGPU runtime](https://github.com/stfurkan/bitgpu)
 - [Bonsai model repository](https://huggingface.co/prism-ml/Bonsai-27B-gguf)
+- [Needle 3 model and engines](https://huggingface.co/Cactus-Compute/needle3)
 - [WebMCP overview](https://developer.chrome.com/docs/ai/webmcp)
 - [WebMCP imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api)
 - [WebMCP draft](https://github.com/webmachinelearning/webmcp)

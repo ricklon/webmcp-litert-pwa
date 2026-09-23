@@ -7,7 +7,10 @@ import type { PlannerTraceEntry } from '../src/types';
 
 test.skip(process.env.RUN_MODEL_BENCHMARK !== '1', 'Opt-in benchmark downloads and runs the selected real models.');
 
-type ModelName = 'chrome' | 'litert' | 'bonsai';
+type BaseModelName = 'chrome' | 'litert' | 'bonsai' | 'needle';
+// A larger model paired with Needle-first routing, such as `litert+needle`.
+type ModelName = BaseModelName | 'chrome+needle' | 'litert+needle' | 'bonsai+needle';
+const modelNames: ModelName[] = ['chrome', 'litert', 'bonsai', 'needle', 'chrome+needle', 'litert+needle', 'bonsai+needle'];
 const playwrightDisabledFeatures = `--disable-features=${[
   'AvoidUnnecessaryBeforeUnloadCheckSync', 'BoundaryEventDispatchTracksNodeRemoval', 'DestroyProfileOnBrowserClose',
   'DialMediaRouteProvider', 'GlobalMediaControls', 'HttpsUpgrades', 'LensOverlay', 'MediaRouter', 'PaintHolding',
@@ -129,11 +132,25 @@ async function chromePromptPreflight(page: Page) {
 }
 
 async function activateModel(page: Page, model: ModelName) {
+  const [base, pairing] = model.split('+') as [BaseModelName, 'needle' | undefined];
+  const needleFirst = page.getByRole('checkbox', { name: /Needle first/ });
+  const startedAt = performance.now();
+  // Turn routing off first so the base model's own state label can be awaited.
+  if (await needleFirst.isChecked()) await needleFirst.uncheck();
+  const baseActivation = await activateBaseModel(page, base);
+  if (!baseActivation || !pairing) return baseActivation;
+  if (!await needleFirst.isChecked()) await needleFirst.check();
+  await expect(page.locator('.state')).toHaveText(model, { timeout: 5 * 60 * 1000 });
+  return { activationMs: performance.now() - startedAt, activationKind: 'measured' as const };
+}
+
+async function activateBaseModel(page: Page, model: BaseModelName) {
   const liteRtVariant = process.env.BENCHMARK_VARIANT === 'litert-e4b' ? 'E4B' : 'E2B';
-  const labels: Record<ModelName, RegExp> = {
+  const labels: Record<BaseModelName, RegExp> = {
     chrome: /Chrome built-in/,
     litert: new RegExp(`LiteRT-LM .*Gemma 4 ${liteRtVariant}`),
-    bonsai: /Bonsai custom.*27B/
+    bonsai: /Bonsai custom.*27B/,
+    needle: /Needle 3 tiny/
   };
   if (await page.locator('.state').textContent() === model) return { activationMs: null, activationKind: 'preloaded' as const };
   const button = page.getByRole('button', { name: labels[model] });
@@ -179,7 +196,7 @@ test('benchmark v2 compares decision quality, tools, clarification, and latency'
   const requested = (process.env.BENCHMARK_MODELS ?? 'chrome,litert,bonsai')
     .split(',')
     .map((value) => value.trim())
-    .filter((value): value is ModelName => ['chrome', 'litert', 'bonsai'].includes(value));
+    .filter((value): value is ModelName => (modelNames as string[]).includes(value));
   const requestedCases = new Set((process.env.BENCHMARK_SCENARIOS ?? benchmarkCases.map(({ id }) => id).join(','))
     .split(',').map((value) => value.trim()).filter(Boolean));
   const selectedCases = benchmarkCases.filter(({ id }) => requestedCases.has(id));
@@ -207,7 +224,8 @@ test('benchmark v2 compares decision quality, tools, clarification, and latency'
       maxStorageBufferBindingSize: value.limits.maxStorageBufferBindingSize
     } : null;
   });
-  if (requested.some((model) => model !== 'chrome')) expect(adapter, 'External models require a hardware WebGPU adapter.').not.toBeNull();
+  // Needle 3 runs on the CPU through WebAssembly and does not need WebGPU.
+  if (requested.some((model) => /^(litert|bonsai)/.test(model))) expect(adapter, 'LiteRT-LM and Bonsai require a hardware WebGPU adapter.').not.toBeNull();
 
   const models = [];
   for (const model of requested) {
@@ -271,6 +289,13 @@ test('benchmark v2 compares decision quality, tools, clarification, and latency'
     const categoryCounts = Object.fromEntries([...new Set(scenarios.flatMap((scenario) => scenario.categories))]
       .map((category) => [category, scenarios.filter((scenario) => scenario.categories.includes(category)).length]));
     const strictPassed = scenarios.filter((scenario) => scenario.strictPass).length;
+    const routedSteps = actualSteps.filter((step) => step.route);
+    const routing = routedSteps.length ? {
+      steps: routedSteps.length,
+      decidedByNeedle: routedSteps.filter((step) => step.route?.decidedBy === 'needle').length,
+      escalations: Object.fromEntries([...new Set(routedSteps.map((step) => step.route?.escalation).filter((reason): reason is string => Boolean(reason)))]
+        .map((reason) => [reason, routedSteps.filter((step) => step.route?.escalation === reason).length]))
+    } : null;
     models.push({
       model,
       availability: 'available' as const,
@@ -318,7 +343,8 @@ test('benchmark v2 compares decision quality, tools, clarification, and latency'
           recovered: recoveredOutputs,
           retried: retriedOutputs
         },
-        failureCategories: categoryCounts
+        failureCategories: categoryCounts,
+        routing
       },
       performance: {
         workflowMs: { mean: mean(workflowLatencies), median: percentile(workflowLatencies, 0.5), p95: percentile(workflowLatencies, 0.95) },
@@ -364,6 +390,7 @@ test('benchmark v2 compares decision quality, tools, clarification, and latency'
     activationSeconds: 'activationMs' in result && result.activationMs !== null ? Number((result.activationMs / 1000).toFixed(2)) : result.availability === 'available' ? 'preloaded' : null,
     strictScore: 'quality' in result ? `${result.quality.strictPassed}/${result.quality.attempted}` : 'n/a',
     exactDecisions: 'quality' in result ? `${Math.round(result.quality.exactDecisionRate * 100)}%` : 'n/a',
+    needleDecided: 'quality' in result && result.quality.routing ? `${result.quality.routing.decidedByNeedle}/${result.quality.routing.steps}` : 'n/a',
     clarification: 'quality' in result ? `${result.quality.clarification.correct}/${result.quality.clarification.expected} correct; ${result.quality.clarification.asked} asked` : 'n/a',
     medianWorkflowSeconds: 'performance' in result && result.performance.workflowMs.median !== null ? Number((result.performance.workflowMs.median / 1000).toFixed(2)) : null,
     p95WorkflowSeconds: 'performance' in result && result.performance.workflowMs.p95 !== null ? Number((result.performance.workflowMs.p95 / 1000).toFixed(2)) : null
